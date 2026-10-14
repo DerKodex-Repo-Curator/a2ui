@@ -3312,17 +3312,21 @@
 <p><strong>Properties:</strong></p>
 <ul>
 <li><code>callRendererFunction</code> (object, required):</li>
+<li><code>surfaceId</code> (string, optional): The unique identifier for the UI surface whose data model provides the evaluation context for this call. If omitted, the function executes in a surface-independent root context with an empty data model (<code>{}</code>).</li>
 <li><code>functionCallId</code> (string, required): A unique identifier for this invocation instance. The renderer MUST copy this ID verbatim into the subsequent <code>rendererFunctionResponse</code> message.</li>
 <li><code>callFunction</code> (object, required): The description of the function call.<ul>
 <li><code>@call</code> (string, required): The registered name of the function to execute.</li>
-<li><code>catalogId</code> (string, required): The catalog ID defining the function to execute. Because <code>callRendererFunction</code> is surface-independent, <code>catalogId</code> MUST be specified; if omitted or unregistered, the renderer rejects the call with <code>code: "INVALID_FUNCTION_CALL"</code>.</li>
+<li><code>catalogId</code> (string, required): The catalog ID defining the function to execute. <code>catalogId</code> MUST be specified on <code>callRendererFunction</code>; if omitted or unregistered, the renderer rejects the call with <code>code: "INVALID_FUNCTION_CALL"</code>.</li>
 <li><code>args</code> (object, optional): Arguments passed to the function, as defined by its schema in the catalog.</li>
 </ul>
 </li>
 </ul>
 <p><strong>Evaluation Scope and Ordering:</strong></p>
 <ul>
-<li><strong>Surface-Independent Scope</strong>: <code>callRendererFunction</code> has no <code>surfaceId</code> and executes in a surface-independent root context with an empty data model (<code>{}</code>). Renderers MUST NOT resolve it against any existing surface's data model. Agents SHOULD pass static literal values in <code>args</code>. Any <code>DataBinding</code> (<code>{"@path": "..."}</code>) inside <code>args</code> resolves against the empty root model (<code>null</code> / <code>undefined</code>), and calling <code>{"@call": "@index"}</code> outside a list template fails with <code>code: "EXECUTION_ERROR"</code>.</li>
+<li><strong>Evaluation Scope</strong>:</li>
+<li>When <code>surfaceId</code> is specified, <code>callRendererFunction</code> executes against the root <code>DataContext</code> (<code>'/'</code>) of that surface's data model, allowing <code>DataBinding</code> (<code>{"@path": "..."}</code>) expressions inside <code>args</code> to read from the surface's data model. If no active surface with <code>surfaceId</code> exists, the renderer MUST reject the call and return a <code>rendererFunctionResponse</code> with <code>code: "INVALID_FUNCTION_CALL"</code>.</li>
+<li>When <code>surfaceId</code> is omitted, <code>callRendererFunction</code> executes in a surface-independent root context with an isolated empty data model (<code>{}</code>). Renderers MUST NOT resolve it against any existing surface's data model; any <code>DataBinding</code> (<code>{"@path": "..."}</code>) inside <code>args</code> resolves against the empty root model (<code>null</code> / <code>undefined</code>).</li>
+<li>In either context, calling <code>{"@call": "@index"}</code> outside a list template fails with <code>code: "EXECUTION_ERROR"</code>.</li>
 <li><strong>Envelope Dispatch Ordering</strong>: Message envelopes in a stream or batch are dispatched in arrival order. Synchronous surface mutations (<code>createSurface</code>, <code>updateComponents</code>, <code>updateDataModel</code>, <code>deleteSurface</code>) that precede a <code>callRendererFunction</code> or <code>agentFunctionResponse</code> envelope take effect before that RPC envelope is dispatched, while asynchronous <code>callRendererFunction</code> execution completes without blocking subsequent envelopes in the stream.</li>
 </ul>
 <p><strong>Security Boundaries and Verification:</strong></p>

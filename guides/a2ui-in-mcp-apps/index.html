@@ -1480,7 +1480,7 @@ flowchart TD
 <li><strong>Include the A2UI Angular/Lit libraries</strong> in your app's bundle.</li>
 <li><strong>Define a communication contract</strong> with your Host to interact with the MCP Server.</li>
 <li>When you receive the response from the Host, look for the <code>application/a2ui+json</code> mimeType in the content.</li>
-<li>Parse the JSON text and pass it to the A2UI <a href="https://github.com/a2ui-project/a2ui/blob/main/renderers/angular/src/v0_8/data/processor.ts"><code>MessageProcessor</code></a>.</li>
+<li>Parse the JSON text and pass it to the A2UI <a href="https://github.com/a2ui-project/a2ui/blob/main/typescript/adapters/angular/src/v0_8/data/processor.ts"><code>MessageProcessor</code></a>.</li>
 </ol>
 <p><strong>Example: Fetching and Rendering A2UI</strong></p>
 <div class="language-typescript highlight"><pre><span></span><code><span id="__span-2-1"><a href="#__codelineno-2-1" id="__codelineno-2-1" name="__codelineno-2-1"></a><span class="c1">// 1. Request A2UI data from Host</span>
