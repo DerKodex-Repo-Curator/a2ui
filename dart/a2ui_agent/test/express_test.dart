@@ -323,6 +323,37 @@ surface("s1")
     }
   });
 
+  group('reports where a syntax error is', () {
+    final cases = <String, (String, String)>{
+      'one the parser finds': (
+        'root = Text("x")\nb = Text("y"',
+        "line 2, column 13: mismatched input '<EOF>'",
+      ),
+      'one the lexer finds': (
+        'root = @Text("x")',
+        "line 1, column 8: token recognition error at: '@'",
+      ),
+      'an argument given twice': (
+        'root = Text(text="a", text="b")',
+        "line 1, column 23: argument 'text' is given twice.",
+      ),
+    };
+    for (final MapEntry<String, (String, String)> entry in cases.entries) {
+      test(entry.key, () {
+        expect(
+          () => compile(entry.value.$1),
+          throwsA(
+            isA<A2uiParseError>().having(
+              (e) => e.message,
+              'message',
+              contains('Express syntax error at ${entry.value.$2}'),
+            ),
+          ),
+        );
+      });
+    }
+  });
+
   group('promptSnippet', () {
     test('annotates the catalog signatures', () {
       final String snippet = processor().promptSnippet;

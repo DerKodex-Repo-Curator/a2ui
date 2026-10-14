@@ -49,6 +49,13 @@
   `https://` where the Apache text has `http://`, which pana does not match,
   and carried the root's notice for `eval/bin/transcrypt`, a file outside
   this package. Also a longer `description`.
+- The Express lexer and parser are generated from `Express.g4` with ANTLR
+  instead of written by hand, so the package depends on `antlr4`. Where the
+  handwritten parser differed from the grammar, Express now follows the
+  grammar: a comment ends at a lone `\r`, `r"""` without a closing `"""` is
+  read as `r""` followed by a string, and `r"` followed by a line break is
+  read as the name `r` followed by a string. Syntax errors carry ANTLR's
+  messages, and their columns count Unicode code points.
 
 ## 0.0.1-wip005
 
