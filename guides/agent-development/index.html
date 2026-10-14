@@ -2691,7 +2691,7 @@
 <p>Select <code>my_agent</code> from the list, and ask questions about restaurants in New York. You should see a list of restaurants in the UI as plain text.</p>
 <h2 id="generating-a2ui-messages">Generating A2UI Messages<a class="headerlink" href="#generating-a2ui-messages" title="Permanent link">&para;</a></h2>
 <p>Getting the LLM to generate A2UI messages requires some prompt engineering. The SDK provides the <code>DirectJsonFormat</code> inference format to help you generate a system prompt that includes the A2UI schema and examples from your component catalog.</p>
-<p>First, make sure you have <code>a2ui-agent-sdk</code> installed (it is included in the samples).</p>
+<p>First, make sure you have <code>a2ui-agent-sdk</code> installed (it is included in the samples). The agent SDK does not depend on an agent framework. The A2A and ADK integrations are separate packages: install <code>a2ui-a2a</code> to serve A2UI over A2A, and <code>a2ui-adk[a2a]</code> to use the ADK toolset and converters.</p>
 <p>In your agent file (e.g., <code>agent.py</code>), import the necessary classes:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">a2ui.core.basic_catalog</span><span class="w"> </span><span class="kn">import</span> <span class="n">BasicCatalog</span>
 </span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">a2ui.inference_formats.direct_json</span><span class="w"> </span><span class="kn">import</span> <span class="n">DirectJsonFormat</span>
