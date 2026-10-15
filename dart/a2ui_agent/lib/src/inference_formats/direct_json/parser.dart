@@ -90,8 +90,9 @@ class DirectJsonParser extends Parser {
       );
 
   /// Built on first use, since building it checks the catalogs: a parser of
-  /// catalogs it cannot read still wraps, unwraps and reads text.
-  late final MessageReader _reader = MessageReader(catalogs);
+  /// catalogs it cannot read still wraps, unwraps and reads text. It reads
+  /// with linked copies of [catalogs], so a cross-catalog `$ref` resolves.
+  late final MessageReader _reader = MessageReader(linkCatalogs(catalogs));
 
   /// Direct JSON can be read before a block closes, by healing the unfinished
   /// JSON.

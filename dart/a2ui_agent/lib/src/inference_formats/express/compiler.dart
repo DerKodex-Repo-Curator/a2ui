@@ -613,7 +613,7 @@ class _SurfaceCompiler {
     final component = <String, Object?>{
       'id': id,
       'component': name,
-      if (catalogId != null) 'catalogId': catalogId,
+      'catalogId': ?catalogId,
     };
     final hoisted = <Map<String, Object?>>[];
     Map<String, Object?>? valueBinding;
@@ -870,7 +870,7 @@ class _SurfaceCompiler {
     }
     final functionCall = <String, Object?>{
       _callKey: name,
-      if (writtenCatalog != null) 'catalogId': writtenCatalog,
+      'catalogId': ?writtenCatalog,
       'args': args,
     };
     return context.isAction ? {'functionCall': functionCall} : functionCall;

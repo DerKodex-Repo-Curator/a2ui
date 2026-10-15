@@ -89,7 +89,7 @@ class ExpressPromptGenerator extends PromptGenerator {
         ..write(section(catalogs.single, '##'));
     } else {
       buffer.write(v1 ? _catalogsV1(catalogs) : _catalogsV0_9(catalogs));
-      for (final CatalogApi catalog in catalogs) {
+      for (final catalog in catalogs) {
         buffer
           ..write('\n\n## Catalog `${catalog.id}`\n\n')
           ..write(section(catalog, '###'));
