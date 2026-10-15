@@ -116,7 +116,10 @@ class RizzchartsAgentExecutor(A2aAgentExecutor):
             from a2ui.utils import load_examples
 
             processor = self._agent.create_processor(active_ui_version, capabilities)
-            a2ui_catalogs = processor.active_catalogs
+            # The rizzcharts catalog already contains every basic component, so
+            # passing the basic catalog too would repeat those schemas in the
+            # prompt. Use only the preferred catalog, which the examples match.
+            a2ui_catalogs = processor.active_catalogs[:1]
             examples_path = self._agent.get_examples_path(
                 active_ui_version, a2ui_catalogs[0].catalog_id
             )
