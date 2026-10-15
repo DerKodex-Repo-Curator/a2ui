@@ -63,9 +63,12 @@ class ExpressPromptGenerator extends PromptGenerator {
   /// has no Express notation; see [ExpressDecompiler.decompile].
   @override
   String generate() {
-    if (catalogs.isEmpty) {
+    if (this.catalogs.isEmpty) {
       throw A2uiCatalogError('An Express prompt needs at least one catalog.');
     }
+    // Linked copies resolve cross-catalog references; [catalogs] stay as
+    // they are.
+    final List<CatalogApi> catalogs = linkCatalogs(this.catalogs);
     final A2uiProtocolVersion version = catalogsProtocolVersion(catalogs);
     final bool v1 = version.isAtLeast(A2uiProtocolVersion.v1_0);
     final decompiler = ExpressDecompiler(catalogs);
@@ -338,7 +341,15 @@ String _functionSignatures(CatalogSchemaHelper helper) {
         details.add('  - $parameter: ${_indent(description)}');
       }
     }
-    signatures.add(['• $name(${arguments.join(', ')})', ...details].join('\n'));
+    signatures.add(
+      [
+        '• $name(${arguments.join(', ')})',
+        if (helper.catalog.functions[name]!.description
+            case final String description)
+          '  - Description: ${_indent(description)}',
+        ...details,
+      ].join('\n'),
+    );
   }
   return signatures.join('\n');
 }

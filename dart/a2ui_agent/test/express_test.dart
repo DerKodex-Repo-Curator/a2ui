@@ -345,6 +345,17 @@ surface("s1")
       expect(snippet, contains('• openUrl(url)'));
     });
 
+    test('describes each function', () {
+      expect(
+        processor().promptSnippet,
+        contains(
+          '• required(value)\n'
+          '  - Description: Checks that the value is not null, undefined, or '
+          'empty.',
+        ),
+      );
+    });
+
     test('describes only the statements of the allowed messages', () {
       String snippet(List<String> allowed) => ExpressFormatFactory(
         allowedMessages: allowed,

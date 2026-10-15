@@ -72,8 +72,6 @@ Not supported:
 - In Express for v0.9, function calls written as statements of their own,
   such as `openUrl("...")`, since v0.9 has no message for them. Decompiling
   messages that use what Express cannot write throws `A2uiValidationError`.
-- Function descriptions in the Express prompt, since `a2ui_core`'s
-  `FunctionApi` does not keep them.
 
 ## Usage
 

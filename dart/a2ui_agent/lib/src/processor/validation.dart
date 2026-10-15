@@ -48,6 +48,8 @@ void validatePayloads(
       }
     }
   }
+  // The processor links copies of the catalogs so cross-catalog references
+  // resolve, leaving [catalogs] as they are.
   final MessageProcessor<ComponentApi> renderer = MessageProcessor.forAgent(
     catalogs: catalogs,
     defaultVersion: catalogs.isEmpty
