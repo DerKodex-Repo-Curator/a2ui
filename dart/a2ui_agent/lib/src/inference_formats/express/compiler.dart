@@ -608,7 +608,7 @@ class _SurfaceCompiler {
     final component = <String, Object?>{
       'id': id,
       'component': name,
-      'catalogId': ?catalogId,
+      if (catalogId != null) 'catalogId': catalogId,
     };
     final hoisted = <Map<String, Object?>>[];
     Map<String, Object?>? valueBinding;
