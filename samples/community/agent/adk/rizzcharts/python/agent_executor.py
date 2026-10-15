@@ -32,7 +32,7 @@ from google.adk.runners import Runner
 logger = logging.getLogger(__name__)
 
 _A2UI_ENABLED_KEY = "system:a2ui_enabled"
-_A2UI_CATALOG_KEY = "system:a2ui_catalog"
+_A2UI_CATALOGS_KEY = "system:a2ui_catalogs"
 _A2UI_EXAMPLES_KEY = "system:a2ui_examples"
 
 
@@ -45,7 +45,7 @@ def get_a2ui_catalogs(ctx: ReadonlyContext):
     Returns:
         The active A2UI catalogs, or an empty list if none are found.
     """
-    return ctx.state.get(_A2UI_CATALOG_KEY) or []
+    return ctx.state.get(_A2UI_CATALOGS_KEY) or []
 
 
 def get_a2ui_examples(ctx: ReadonlyContext):
@@ -132,7 +132,7 @@ class RizzchartsAgentExecutor(A2aAgentExecutor):
                     actions=EventActions(
                         state_delta={
                             _A2UI_ENABLED_KEY: True,
-                            _A2UI_CATALOG_KEY: a2ui_catalogs,
+                            _A2UI_CATALOGS_KEY: a2ui_catalogs,
                             _A2UI_EXAMPLES_KEY: examples,
                         }
                     ),

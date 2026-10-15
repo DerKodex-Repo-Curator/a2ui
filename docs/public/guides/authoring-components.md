@@ -244,7 +244,7 @@ if use_ui:
             actions=EventActions(
                 state_delta={
                     _A2UI_ENABLED_KEY: True,
-                    _A2UI_CATALOG_KEY: catalogs,
+                    _A2UI_CATALOGS_KEY: catalogs,
                     _A2UI_EXAMPLES_KEY: examples,
                 }
             ),

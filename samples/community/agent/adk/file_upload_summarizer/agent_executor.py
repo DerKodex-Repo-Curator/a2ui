@@ -29,7 +29,7 @@ from file_resolution import STATE_KEY_BASE_URL
 logger = logging.getLogger(__name__)
 
 _A2UI_ENABLED_KEY = "system:a2ui_enabled"
-_A2UI_CATALOG_KEY = "system:a2ui_catalog"
+_A2UI_CATALOGS_KEY = "system:a2ui_catalogs"
 _A2UI_EXAMPLES_KEY = "system:a2ui_examples"
 
 
@@ -97,7 +97,7 @@ class FileUploadSummarizerAgentExecutor(A2aAgentExecutor):
                     actions=EventActions(
                         state_delta={
                             _A2UI_ENABLED_KEY: True,
-                            _A2UI_CATALOG_KEY: a2ui_catalogs,
+                            _A2UI_CATALOGS_KEY: a2ui_catalogs,
                             _A2UI_EXAMPLES_KEY: examples,
                         }
                     ),

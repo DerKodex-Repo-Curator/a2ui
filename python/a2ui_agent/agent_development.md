@@ -335,7 +335,7 @@ async def _prepare_session(self, context, run_request, runner):
           actions=EventActions(
               state_delta={
                   "system:a2ui_enabled": True,
-                  "system:a2ui_catalog": processor.active_catalogs,
+                  "system:a2ui_catalogs": processor.active_catalogs,
                   "system:a2ui_examples": examples,
               }
           ),
@@ -352,7 +352,7 @@ active catalogs and examples from the current context state at runtime.
 ```python
 # Providers that read from context state
 def get_a2ui_catalogs(ctx: ReadonlyContext):
-  return ctx.state.get("system:a2ui_catalog") or []
+  return ctx.state.get("system:a2ui_catalogs") or []
 
 
 def get_a2ui_examples(ctx: ReadonlyContext):

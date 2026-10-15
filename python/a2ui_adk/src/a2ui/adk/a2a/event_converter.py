@@ -52,15 +52,16 @@ if TYPE_CHECKING:
 
 @experimental
 class A2uiEventConverter:
-    """An event converter that automatically injects the A2UI catalog into part conversion.
+    """An event converter that automatically injects the A2UI catalogs into part conversion.
 
     This allows text-based A2UI extraction and validation to work even when the
-    catalog is session-specific.
+    catalogs are session-specific. By default it reads them from the
+    `system:a2ui_catalogs` session-state key.
     """
 
     def __init__(
         self,
-        catalog_key: str = "system:a2ui_catalog",
+        catalog_key: str = "system:a2ui_catalogs",
         bypass_tool_check: bool = False,
         fallback_text: str | None = None,
     ):

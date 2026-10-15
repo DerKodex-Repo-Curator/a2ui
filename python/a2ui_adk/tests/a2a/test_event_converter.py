@@ -28,7 +28,7 @@ def test_event_converter_injects_catalog():
     event_mock = MagicMock()
     invocation_context_mock = MagicMock()
     # Correctly access session via mock
-    invocation_context_mock.session.state = {"system:a2ui_catalog": catalog_mock}
+    invocation_context_mock.session.state = {"system:a2ui_catalogs": catalog_mock}
 
     converter = A2uiEventConverter()
 
@@ -60,7 +60,7 @@ def test_event_converter_injects_catalog_sequence():
     ]
     event_mock = MagicMock()
     invocation_context_mock = MagicMock()
-    invocation_context_mock.session.state = {"system:a2ui_catalog": catalogs}
+    invocation_context_mock.session.state = {"system:a2ui_catalogs": catalogs}
 
     converter = A2uiEventConverter()
 
@@ -109,7 +109,7 @@ def test_event_converter_propagates_fallback_text():
     )
     event_mock = MagicMock()
     invocation_context_mock = MagicMock()
-    invocation_context_mock.session.state = {"system:a2ui_catalog": catalog_mock}
+    invocation_context_mock.session.state = {"system:a2ui_catalogs": catalog_mock}
 
     custom_fallback = "Custom event fallback text"
     converter = A2uiEventConverter(fallback_text=custom_fallback)
