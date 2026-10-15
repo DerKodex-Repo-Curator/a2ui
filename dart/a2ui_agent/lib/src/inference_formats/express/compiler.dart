@@ -68,6 +68,10 @@ class ExpressCompiler {
   /// The protocol version [catalogs] target.
   late final A2uiProtocolVersion _version = catalogsProtocolVersion(catalogs);
 
+  /// Checks each compiled v1.0 message, keeping its validators across
+  /// blocks.
+  late final MessageReader _reader = MessageReader(catalogs);
+
   bool get _v1 => _version.isAtLeast(A2uiProtocolVersion.v1_0);
 
   /// Compiles the content of one block, without its sentinel tags.
@@ -114,11 +118,10 @@ class ExpressCompiler {
     // Each message is checked as a renderer would check it on its own: every
     // component against the catalog it belongs to, and every call against
     // the catalog the call belongs to.
-    final reader = MessageReader(catalogs);
     final surfaces = <String, String?>{};
     return [
       for (final Map<String, Object?> envelope in envelopes)
-        reader.read(envelope, surfaces),
+        _reader.read(envelope, surfaces),
     ];
   }
 
