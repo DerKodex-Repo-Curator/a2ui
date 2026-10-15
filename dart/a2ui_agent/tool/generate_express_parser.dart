@@ -200,7 +200,10 @@ String _languageVersion() {
 String _java() {
   final String? home = Platform.environment['JAVA_HOME'];
   if (home == null || home.isEmpty) return 'java';
-  return '$home${Platform.pathSeparator}bin${Platform.pathSeparator}java';
+  // A path, unlike a bare name, is run without the extension Windows adds.
+  final executable = Platform.isWindows ? 'java.exe' : 'java';
+  return '$home${Platform.pathSeparator}bin${Platform.pathSeparator}'
+      '$executable';
 }
 
 /// The ANTLR jar, downloaded into the Maven cache if it is not there yet.
