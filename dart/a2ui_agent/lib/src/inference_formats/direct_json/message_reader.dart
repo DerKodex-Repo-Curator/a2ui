@@ -25,9 +25,13 @@ const Map<String, Set<String>> _bodyFields = {
   'deleteSurface': {'surfaceId'},
 };
 
-/// Reads the decoded messages of one direct JSON payload into v0.9 messages,
-/// checking each the way a renderer holding [catalogs] would check it on its
-/// own.
+/// The keys of a component that are not its properties, so that no function
+/// call is nested in them.
+const Set<String> _envelopeKeys = {'id', 'component', 'catalogId', 'metadata'};
+
+/// Reads the decoded messages of one direct JSON payload into messages of
+/// the protocol version [catalogs] target, checking each the way a renderer
+/// holding [catalogs] would check it on its own.
 ///
 /// A payload may update a surface created by an earlier response, so a
 /// message is checked against the surfaces the payload creates and nothing
@@ -35,21 +39,26 @@ const Map<String, Set<String>> _bodyFields = {
 /// they call against their catalog's signatures. The checks that need the
 /// whole surface, such as a reachable root, are `A2uiRequestProcessor`'s.
 ///
-/// Reading the messages of v1.0 catalogs is not implemented yet and throws
-/// [UnimplementedError].
+/// Before v1.0 every component and call of a surface belongs to the catalog
+/// the surface names. From v1.0 a component or a function call may name a
+/// catalog of its own, and one that names none belongs to its surface's
+/// catalog, as a renderer resolves it. A surface the payload does not create
+/// has a catalog the payload does not state, so a component or call of it
+/// that names none is checked against the first catalog declaring it.
 class MessageReader {
   /// The first of [catalogs] is the one a component is checked against when
   /// its surface is not created by the payload and no catalog declares it.
   ///
   /// Throws [A2uiCatalogError] if [catalogs] is empty or they target
-  /// different versions, and [UnimplementedError] if they target v1.0.
-  MessageReader(this.catalogs) {
-    if (catalogsProtocolVersion(catalogs).isAtLeast(A2uiProtocolVersion.v1_0)) {
-      throw UnimplementedError('Reading direct JSON messages of protocol v1.0');
-    }
-  }
+  /// different versions.
+  MessageReader(this.catalogs) : version = catalogsProtocolVersion(catalogs);
 
   final List<CatalogApi> catalogs;
+
+  /// The protocol version [catalogs] target, which every message is read as.
+  final A2uiProtocolVersion version;
+
+  bool get _v1 => version.isAtLeast(A2uiProtocolVersion.v1_0);
 
   late final Map<String, PayloadValidator<ComponentApi, FunctionApi>>
   _validators = {
@@ -60,11 +69,12 @@ class MessageReader {
   /// Reads [envelope], the next message of a payload.
   ///
   /// [surfaces] maps each surface the payload created so far to its catalog
-  /// id, and is updated with this message.
+  /// id, or to null for a v1.0 surface that names none, and is updated with
+  /// this message.
   ///
-  /// Throws [A2uiValidationError] if [envelope] is not a v0.9 message, or
-  /// names or uses anything the catalogs do not declare.
-  AgentToRendererMessage read(Object? envelope, Map<String, String> surfaces) {
+  /// Throws [A2uiValidationError] if [envelope] is not a message of
+  /// [version], or names or uses anything the catalogs do not declare.
+  AgentToRendererMessage read(Object? envelope, Map<String, String?> surfaces) {
     if (envelope is! Map<String, Object?>) {
       throw A2uiValidationError(
         'A direct JSON payload must be a list of message objects, got '
@@ -73,8 +83,20 @@ class MessageReader {
     }
     final AgentToRendererMessage message = AgentToRendererMessage.parseAll([
       envelope,
-    ], protocolVersion: A2uiProtocolVersion.v0_9).messages.single;
-    _checkFields(envelope);
+    ], protocolVersion: version).messages.single;
+    if (_v1) {
+      _checkV1(message, surfaces);
+    } else {
+      _checkFields(envelope);
+      _checkV0_9(message, surfaces);
+    }
+    return message;
+  }
+
+  void _checkV0_9(
+    AgentToRendererMessage message,
+    Map<String, String?> surfaces,
+  ) {
     switch (message) {
       case CreateSurfaceMessage():
         final String catalogId =
@@ -82,14 +104,10 @@ class MessageReader {
             (throw A2uiValidationError(
               "Surface '${message.surfaceId}' names no catalogId.",
             ));
-        final PayloadValidator<ComponentApi, FunctionApi> validator =
-            _validators[catalogId] ??
-            (throw A2uiValidationError(
-              "Surface '${message.surfaceId}' names catalog "
-              "'$catalogId', which is not active. Active catalogs: "
-              '${_validators.keys.join(', ')}.',
-            ));
-        validator.validateTheme(message.theme);
+        _validator(
+          catalogId,
+          "Surface '${message.surfaceId}'",
+        ).validateTheme(message.theme);
         surfaces[message.surfaceId] = catalogId;
       case UpdateComponentsMessage():
         if (message.components.isEmpty) {
@@ -99,7 +117,9 @@ class MessageReader {
         }
         for (final Map<String, Object?> component in message.components) {
           final PayloadValidator<ComponentApi, FunctionApi> validator =
-              _validatorFor(component, surfaces[message.surfaceId]);
+              _validators[surfaces[message.surfaceId] ??
+                  _declaring(component['component'], components: true) ??
+                  catalogs.first.id]!;
           validator.validateComponent(component);
           _checkCalls(component, validator);
         }
@@ -108,24 +128,141 @@ class MessageReader {
       default:
         break;
     }
-    return message;
   }
 
-  /// The validator for the catalog [component] belongs to: its surface's,
-  /// else the first catalog declaring its type, else the first catalog.
-  PayloadValidator<ComponentApi, FunctionApi> _validatorFor(
+  void _checkV1(AgentToRendererMessage message, Map<String, String?> surfaces) {
+    switch (message) {
+      case CreateSurfaceMessage(:final String surfaceId):
+        if (message.catalogId case final String catalogId) {
+          _validator(catalogId, "Surface '$surfaceId'");
+        }
+        surfaces[surfaceId] = message.catalogId;
+        for (final Map<String, Object?> component in message.components ?? []) {
+          _checkComponent(component, surfaceId, surfaces);
+        }
+      case UpdateComponentsMessage(:final String surfaceId):
+        for (final Map<String, Object?> component in message.components) {
+          _checkComponent(component, surfaceId, surfaces);
+        }
+      case DeleteSurfaceMessage():
+        surfaces.remove(message.surfaceId);
+      case CallRendererFunctionMessage(:final callFunction):
+        final name = callFunction['@call']! as String;
+        _validator(
+          callFunction['catalogId']! as String,
+          "Function call '$name'",
+        ).validateFunction(name, _args(callFunction));
+      default:
+        break;
+    }
+  }
+
+  /// Checks a v1.0 [component] of surface [surfaceId] against the catalog it
+  /// belongs to, and each function call in it against the catalog the call
+  /// belongs to.
+  ///
+  /// Throws [A2uiValidationError] if the component or a call names no
+  /// catalog on a surface that names none, names a catalog that is not
+  /// active, or does not match its catalog.
+  void _checkComponent(
     Map<String, Object?> component,
-    String? surfaceCatalogId,
+    String surfaceId,
+    Map<String, String?> surfaces,
   ) {
-    if (surfaceCatalogId != null) return _validators[surfaceCatalogId]!;
-    for (final CatalogApi catalog in catalogs) {
-      if (catalog.components.containsKey(component['component'])) {
-        return _validators[catalog.id]!;
+    final bool created = surfaces.containsKey(surfaceId);
+
+    /// The catalog an item names, else its surface's, else the first catalog
+    /// declaring it.
+    String resolve(Object? named, String subject, String? declaring) {
+      if (named != null) {
+        if (named is String) return named;
+        throw A2uiValidationError("$subject has a non-string 'catalogId'.");
+      }
+      if (!created) return declaring ?? catalogs.first.id;
+      return surfaces[surfaceId] ??
+          (throw A2uiValidationError(
+            "$subject names no catalogId, and surface '$surfaceId' names no "
+            'catalog.',
+          ));
+    }
+
+    final Object? id = component['id'];
+    final String catalogId = resolve(
+      component['catalogId'],
+      "Component '$id'",
+      _declaring(component['component'], components: true),
+    );
+    // Given its catalog's id, the validator checks the calls that name that
+    // catalog, and the others are checked below, each against its own.
+    _validator(
+      catalogId,
+      "Component '$id'",
+    ).validateComponent({...component, 'catalogId': catalogId});
+
+    void visit(Object? node) {
+      switch (node) {
+        case final List<Object?> items:
+          items.forEach(visit);
+        case final Map<Object?, Object?> map:
+          final Object? name = map['@call'];
+          if (name is String &&
+              !name.startsWith('@') &&
+              map['catalogId'] != catalogId) {
+            final String callCatalog = resolve(
+              map['catalogId'],
+              "Function call '$name' in component '$id'",
+              _declaring(name, components: false),
+            );
+            _validator(
+              callCatalog,
+              "Function call '$name' in component '$id'",
+            ).validateFunctionArgs(name, _args(map), componentId: id);
+          }
+          map.values.forEach(visit);
       }
     }
-    return _validators[catalogs.first.id]!;
+
+    for (final MapEntry<String, Object?> entry in component.entries) {
+      if (!_envelopeKeys.contains(entry.key)) visit(entry.value);
+    }
+  }
+
+  /// The validator of the active catalog [catalogId], which [subject] names.
+  ///
+  /// Throws [A2uiValidationError] if no active catalog has that id.
+  PayloadValidator<ComponentApi, FunctionApi> _validator(
+    String catalogId,
+    String subject,
+  ) =>
+      _validators[catalogId] ??
+      (throw A2uiValidationError(
+        "$subject names catalog '$catalogId', which is not active. Active "
+        'catalogs: ${_validators.keys.join(', ')}.',
+      ));
+
+  /// The id of the first catalog declaring a component or, when [components]
+  /// is false, a function named [name], or null if none does.
+  String? _declaring(Object? name, {required bool components}) {
+    for (final CatalogApi catalog in catalogs) {
+      if ((components ? catalog.components : catalog.functions).containsKey(
+        name,
+      )) {
+        return catalog.id;
+      }
+    }
+    return null;
   }
 }
+
+/// The arguments of [call], or none.
+Map<String, Object?> _args(Map<Object?, Object?> call) =>
+    switch (call['args']) {
+      final Map<Object?, Object?> args => args.cast<String, Object?>(),
+      null => const {},
+      _ => throw A2uiValidationError(
+        "The 'args' of a call to '${call['@call']}' must be an object.",
+      ),
+    };
 
 /// Rejects a field the envelope or its body does not declare.
 void _checkFields(Map<String, Object?> envelope) {
@@ -146,7 +283,8 @@ void _checkFields(Map<String, Object?> envelope) {
   }
 }
 
-/// Checks each function call in [value] against the catalog of [validator].
+/// Checks each v0.9 function call in [value] against the catalog of
+/// [validator].
 void _checkCalls(
   Object? value,
   PayloadValidator<ComponentApi, FunctionApi> validator,
