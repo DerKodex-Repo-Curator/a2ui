@@ -234,7 +234,7 @@ void main() {
             'args': {'value': 'Hello'},
           }),
         ]),
-        throwsA(isA<A2uiCatalogError>()),
+        throwsA(isA<A2uiValidationError>()),
       );
     });
 
@@ -257,7 +257,7 @@ void main() {
         () => forAgent(catalogs: [v0_9]).processMessages([
           callRendererFunction({'catalogId': v0_9.id, '@call': 'ping'}),
         ]),
-        throwsA(isA<A2uiCatalogError>()),
+        throwsA(isA<A2uiValidationError>()),
       );
     });
 
@@ -279,6 +279,81 @@ void main() {
         ]),
         throwsA(isA<A2uiValidationError>()),
       );
+    });
+
+    test('rejects a field a function call does not have', () {
+      expect(
+        () => forAgent(catalogs: [callable]).processMessages([
+          callRendererFunction({
+            '@call': 'formatString',
+            'args': {'value': 'Hello'},
+            'unknown': 1,
+          }),
+        ]),
+        throwsA(isA<A2uiValidationError>()),
+      );
+    });
+
+    group('with a call nested in the arguments', () {
+      final CatalogApi other = Catalog.fromJson({
+        ...document,
+        'catalogId': 'example/other',
+      });
+
+      Map<String, Object?> nesting(Map<String, Object?> nested) =>
+          callRendererFunction({
+            '@call': 'formatString',
+            'args': {'value': nested},
+          });
+
+      test('accepts one that matches the catalog it names', () {
+        forAgent(catalogs: [callable, other]).processMessages([
+          nesting({
+            '@call': 'formatString',
+            'catalogId': other.id,
+            'args': {'value': 'Hello'},
+          }),
+        ]);
+      });
+
+      test('checks it against the catalog it names', () {
+        expect(
+          () => forAgent(catalogs: [callable, other]).processMessages([
+            nesting({
+              '@call': 'formatString',
+              'catalogId': other.id,
+              'args': {'text': 'Hello'},
+            }),
+          ]),
+          throwsA(isA<A2uiValidationError>()),
+        );
+      });
+
+      test('rejects one naming a catalog it does not hold', () {
+        expect(
+          () => forAgent(catalogs: [callable]).processMessages([
+            nesting({
+              '@call': 'formatString',
+              'catalogId': other.id,
+              'args': {'value': 'Hello'},
+            }),
+          ]),
+          throwsA(isA<A2uiValidationError>()),
+        );
+      });
+
+      test('rejects a field it does not have', () {
+        expect(
+          () => forAgent(catalogs: [callable]).processMessages([
+            nesting({
+              '@call': 'formatString',
+              'args': {'value': 'Hello'},
+              'unknown': 1,
+            }),
+          ]),
+          throwsA(isA<A2uiValidationError>()),
+        );
+      });
     });
   });
 }

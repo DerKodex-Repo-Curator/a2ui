@@ -475,10 +475,15 @@ class MessageProcessor<T extends ComponentApi> {
   /// component's nested calls are, rather than resolved against the data
   /// model first, which only the renderer holds.
   ///
-  /// Throws [A2uiValidationError] where a renderer would answer the call
-  /// with an `INVALID_FUNCTION_CALL` error, and [A2uiCatalogError] for a
-  /// catalog this processor does not hold, or one whose protocol version is
-  /// not the message's.
+  /// The call and the calls nested in its arguments are checked as
+  /// `PayloadValidator.validateFunctionCall` checks them: a nested call that
+  /// names another catalog is checked against that catalog, which this
+  /// processor must hold too.
+  ///
+  /// Throws [A2uiValidationError] wherever a renderer would answer the call
+  /// with an `INVALID_FUNCTION_CALL` error, which includes a surface that
+  /// does not exist and a catalog this processor does not hold or whose
+  /// protocol version is not the message's.
   void _checkRendererFunctionCall(
     CallRendererFunctionOp operation,
     bool isUserActivated,
@@ -496,18 +501,28 @@ class MessageProcessor<T extends ComponentApi> {
           '$subject names no catalogId, which a callRendererFunction '
           'requires.',
         ));
-    final Catalog<T, FunctionImplementation> catalog = catalogFor(catalogId);
-    final String version = operation.version.jsonValue;
-    if (!isCatalogVersionCompatible(
-      catalog.protocolVersion?.jsonValue,
-      version,
-    )) {
-      throw A2uiCatalogError(
-        "$subject names catalog '$catalogId', whose protocol version is not "
-        "the message's '$version'.",
-        catalogId: catalogId,
+    Catalog<T, FunctionImplementation> held(String id, String subject) {
+      final Catalog<T, FunctionImplementation> catalog = catalogs.firstWhere(
+        (Catalog<T, FunctionImplementation> c) => c.id == id,
+        orElse: () => throw A2uiValidationError(
+          "$subject names catalog '$id', which this processor does not "
+          'hold. Held: ${catalogs.map((c) => c.id).join(', ')}.',
+        ),
       );
+      final String version = operation.version.jsonValue;
+      if (!isCatalogVersionCompatible(
+        catalog.protocolVersion?.jsonValue,
+        version,
+      )) {
+        throw A2uiValidationError(
+          "$subject names catalog '$id', whose protocol version is not the "
+          "message's '$version'.",
+        );
+      }
+      return catalog;
     }
+
+    final Catalog<T, FunctionImplementation> catalog = held(catalogId, subject);
     final String name = call.call;
     final FunctionImplementation function = catalog.functions[name] ??
         (throw A2uiValidationError(
@@ -525,9 +540,13 @@ class MessageProcessor<T extends ComponentApi> {
         "$subject names '$name', which requires a user activation.",
       );
     }
-    validatorFor(catalog, version: operation.version).validateFunction(
-      name,
-      call.args.cast<String, Object?>(),
+    validatorFor(catalog, version: operation.version).validateFunctionCall(
+      operation.callFunction,
+      validatorFor: (String id) => validatorFor(
+        held(
+            id, "A call nested in function call '${operation.functionCallId}'"),
+        version: operation.version,
+      ),
     );
   }
 

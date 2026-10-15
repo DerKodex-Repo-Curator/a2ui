@@ -150,11 +150,15 @@ class MessageReader {
       case DeleteSurfaceMessage():
         surfaces.remove(message.surfaceId);
       case CallRendererFunctionMessage(:final callFunction):
-        final name = callFunction['@call']! as String;
+        final Object? name = callFunction['@call'];
         _validator(
           callFunction['catalogId']! as String,
           "Function call '$name'",
-        ).validateFunction(name, _args(callFunction));
+        ).validateFunctionCall(
+          callFunction,
+          validatorFor: (String id) =>
+              _validator(id, "A call nested in function call '$name'"),
+        );
       default:
         break;
     }

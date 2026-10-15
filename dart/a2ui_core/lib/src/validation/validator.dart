@@ -406,6 +406,96 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   }) =>
       _checkArgs(name, _jsonMap(args), componentId: componentId);
 
+  /// Checks [call], a v1.0 function call written on its own rather than
+  /// nested in a component, such as the `callFunction` of a
+  /// `callRendererFunction`, which runs in [catalog].
+  ///
+  /// The call, and each call nested in its arguments, may hold only `@call`,
+  /// `catalogId`, `args` and the other properties its function's definition
+  /// declares, as `FunctionCall` in `common_types.json` allows. The call is
+  /// checked as [validateFunction] checks it, together with the nested calls
+  /// that run in [catalog]. A nested call that names another catalog is
+  /// checked with [validateFunctionArgs] on the validator [validatorFor]
+  /// returns for that catalog, which throws for a catalog the caller does
+  /// not hold.
+  ///
+  /// Throws [A2uiValidationError] if a call breaks any of those rules.
+  void validateFunctionCall(
+    Map<String, Object?> call, {
+    required PayloadValidator<ComponentApi, FunctionApi> Function(
+      String catalogId,
+    ) validatorFor,
+  }) {
+    final Object? name = call['@call'];
+    if (name is! String) {
+      throw A2uiValidationError("A function call has no string '@call'.");
+    }
+    final Map<String, Object?> args = _callArgs(call, name);
+    _checkCallKeys(call, name);
+    validateFunction(name, args);
+
+    void visit(Object? node) {
+      switch (node) {
+        case final List<Object?> items:
+          items.forEach(visit);
+        case final Map<Object?, Object?> map:
+          if (map['@call'] case final String nested) {
+            final Object? nestedCatalog = map['catalogId'];
+            if (nestedCatalog != null && nestedCatalog is! String) {
+              throw A2uiValidationError(
+                "Function call '$nested' has a non-string 'catalogId'.",
+              );
+            }
+            if (nestedCatalog is String &&
+                nestedCatalog != catalog.id &&
+                !nested.startsWith('@')) {
+              final PayloadValidator<ComponentApi, FunctionApi> owner =
+                  validatorFor(nestedCatalog);
+              owner._checkCallKeys(map, nested);
+              owner.validateFunctionArgs(nested, _callArgs(map, nested));
+            } else {
+              _checkCallKeys(map, nested);
+            }
+          }
+          map.values.forEach(visit);
+      }
+    }
+
+    args.values.forEach(visit);
+  }
+
+  /// The arguments of [call], a call to [name], or none.
+  static Map<String, Object?> _callArgs(
+    Map<Object?, Object?> call,
+    String name,
+  ) =>
+      switch (call['args']) {
+        null => const <String, Object?>{},
+        final Map<Object?, Object?> map => map.cast<String, Object?>(),
+        _ => throw A2uiValidationError(
+            "Function call '$name' has non-object 'args'.",
+          ),
+      };
+
+  /// Rejects a field of [call], a call to [name], that `FunctionCall` does
+  /// not evaluate: one other than `@call`, `catalogId`, `args` and the
+  /// properties the definition of [name] in [catalog] declares.
+  void _checkCallKeys(Map<Object?, Object?> call, String name) {
+    final Object? declared = catalog.functions[name]?.definition?['properties'];
+    for (final Object? key in call.keys) {
+      if (_functionCallKeys.contains(key) ||
+          (declared is Map && declared.containsKey(key))) {
+        continue;
+      }
+      throw A2uiValidationError(
+        "Function call '$name' has no field '$key'. Its fields are: "
+        "${_functionCallKeys.join(', ')}.",
+      );
+    }
+  }
+
+  static const Set<String> _functionCallKeys = {'@call', 'catalogId', 'args'};
+
   void _checkArgs(
     String name,
     Map<String, Object?> args, {
