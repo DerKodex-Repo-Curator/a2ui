@@ -229,9 +229,11 @@ class DirectJsonParser extends Parser {
   /// and any tail that could be the start of a tag, which wait for the next
   /// chunk. A message is emitted once it reads and satisfies the catalogs,
   /// and again whenever a later chunk changes it; each [A2uiPart] carries the
-  /// messages of one block that are new or changed. A `createSurface` is
-  /// emitted once, after its object closes, since a renderer accepts it only
-  /// once, and the messages after it wait with it. See
+  /// messages of one block that are new or changed. Only `updateComponents`
+  /// and `updateDataModel` are emitted while they grow. Any other message,
+  /// such as a `createSurface` or a `callRendererFunction`, is emitted once,
+  /// after its object closes, since a renderer acts on it only once, and the
+  /// messages after it wait with it. See
   /// `conformance/agent/direct_json/response_streaming.yaml`.
   ///
   /// Throws [ArgumentError] if [wrapped] differs from the first call's,
@@ -330,9 +332,7 @@ class DirectJsonParser extends Parser {
     final ready = <AgentToRendererMessage>[];
     for (final (:Object? message, :bool closed) in envelopes) {
       // Held until it closes, and nothing after it is emitted ahead of it.
-      if (!closed && message is Map && message.containsKey('createSurface')) {
-        break;
-      }
+      if (!closed && !_growsInPlace(message)) break;
       try {
         ready.add(reader.read(message, surfaces));
       } on A2uiError {
@@ -362,6 +362,13 @@ class DirectJsonParser extends Parser {
     if (changed.isNotEmpty) parts.add(A2uiPart(changed));
   }
 }
+
+/// Whether [envelope] is a message a renderer applies again as it grows, so
+/// that it may be emitted before it closes.
+bool _growsInPlace(Object? envelope) =>
+    envelope is Map &&
+    (envelope.containsKey('updateComponents') ||
+        envelope.containsKey('updateDataModel'));
 
 /// Whether [envelope] is a v1.0 `updateComponents` read so far whose
 /// components have all closed, so that no later chunk can change it.

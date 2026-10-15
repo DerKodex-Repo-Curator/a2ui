@@ -512,6 +512,43 @@ void main() {
       );
     });
 
+    test('streams a callRendererFunction once, after its object closes', () {
+      final Parser parser = const DirectJsonFormatFactory().createFormat([
+        basic,
+      ]).createParser();
+      // The surface id comes last, so the call reads before it arrives.
+      final String response = jsonBlock([
+        helloSurface,
+        {
+          'callRendererFunction': {
+            'functionCallId': 'call_1',
+            'callFunction': {
+              'catalogId': basic.id,
+              '@call': 'formatString',
+              'args': {'value': 'Hello'},
+            },
+            'surfaceId': 's',
+          },
+        },
+      ]);
+      final int cut = response.lastIndexOf(',"surfaceId"');
+      final List<AgentToRendererMessage> messages = [
+        for (final String chunk in [
+          response.substring(0, cut),
+          response.substring(cut),
+        ])
+          for (final A2uiPart part
+              in parser.parseChunk(chunk).whereType<A2uiPart>())
+            ...part.a2ui,
+      ];
+      expect(
+        messages.whereType<CallRendererFunctionMessage>().map(
+          (CallRendererFunctionMessage m) => m.surfaceId,
+        ),
+        ['s'],
+      );
+    });
+
     test('raises on the chunk that closes an invalid component', () {
       final Parser parser = const DirectJsonFormatFactory().createFormat([
         basic,

@@ -73,9 +73,10 @@
 - Payload checks run through `a2ui_core`'s `MessageProcessor.forAgent`.
   They throw `A2uiValidationError` for a component or function call naming a
   catalog that is not active, as for a surface.
-- The direct JSON parser emits a streamed `createSurface` once, after its
-  object closes, and holds the messages after it until then, in every
-  version. It was emitted while it grew.
+- The direct JSON parser emits a streamed message other than
+  `updateComponents` and `updateDataModel`, such as a `createSurface`, once,
+  after its object closes, and holds the messages after it until then, in
+  every version. It was emitted while it grew.
 - The Express decompiler throws `A2uiValidationError` for a check whose
   condition carries fields other than the function and its arguments, rather
   than leaving them out.
