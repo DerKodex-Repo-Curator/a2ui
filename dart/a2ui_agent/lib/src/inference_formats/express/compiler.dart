@@ -865,7 +865,7 @@ class _SurfaceCompiler {
     }
     final functionCall = <String, Object?>{
       _callKey: name,
-      'catalogId': ?writtenCatalog,
+      if (writtenCatalog != null) 'catalogId': writtenCatalog,
       'args': args,
     };
     return context.isAction ? {'functionCall': functionCall} : functionCall;
