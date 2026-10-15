@@ -18,8 +18,8 @@ import 'package:a2ui_core/a2ui_core.dart';
 
 import '../../parser/parser.dart';
 import '../../parser/response_part.dart';
+import '../../utils/message_reader.dart';
 import 'json_reader.dart';
-import 'message_reader.dart';
 
 // The open tag may carry attributes, such as `<a2ui-json version="v0.9">`.
 final RegExp _openTag = RegExp(
@@ -45,9 +45,7 @@ final RegExp _trailingFence = RegExp(r'\s*```[a-zA-Z-]*$');
 /// response through [parseChunk]; [parseResponse] and the other members keep
 /// no state.
 ///
-/// Messages are read as the protocol version the catalogs target. Reading
-/// the messages of v1.0 catalogs, in [compile] and in [parseChunk], is not
-/// implemented yet and throws [UnimplementedError].
+/// Messages are read as the protocol version the catalogs target.
 class DirectJsonParser extends Parser {
   DirectJsonParser(
     List<CatalogApi> catalogs, {
@@ -67,14 +65,29 @@ class DirectJsonParser extends Parser {
   final Set<String> progressiveKeys;
 
   /// Whether a streamed component is held back until its JSON object closes,
-  /// rather than healed and shown while it arrives.
+  /// rather than healed and shown while it arrives, for catalogs before
+  /// v1.0.
   ///
   /// From v1.0 a component may name its own `catalogId`, and the key can
   /// arrive after its type and properties, so a component shown early may be
-  /// checked and rendered against the wrong catalog. A v1.0 agent turns this
-  /// on; [progressiveKeys] then only heal values outside components, such as
-  /// a data model.
+  /// checked and rendered against the wrong catalog. The components of v1.0
+  /// catalogs are therefore always held back, whatever this says, and
+  /// [progressiveKeys] then only heal values outside components, such as a
+  /// data model.
   final bool bufferIncompleteComponents;
+
+  /// Whether a streamed component is held back until its JSON object closes:
+  /// for v1.0 catalogs always, and otherwise as [bufferIncompleteComponents]
+  /// says.
+  ///
+  /// Read from the catalogs without checking them, so that a parser of
+  /// catalogs it cannot read still reads text.
+  bool get _buffersComponents =>
+      bufferIncompleteComponents ||
+      catalogs.any(
+        (CatalogApi c) =>
+            c.protocolVersion?.isAtLeast(A2uiProtocolVersion.v1_0) ?? false,
+      );
 
   /// Built on first use, since building it checks the catalogs: a parser of
   /// catalogs it cannot read still wraps, unwraps and reads text.
@@ -180,7 +193,7 @@ class DirectJsonParser extends Parser {
     }
     // Read before the loop, so that an empty list checks the catalogs too.
     final MessageReader reader = _reader;
-    final surfaces = <String, String>{};
+    final surfaces = <String, String?>{};
     return [
       for (final Object? envelope in decoded is List ? decoded : [decoded])
         reader.read(envelope, surfaces),
@@ -215,14 +228,19 @@ class DirectJsonParser extends Parser {
   /// and any tail that could be the start of a tag, which wait for the next
   /// chunk. A message is emitted once it reads and satisfies the catalogs,
   /// and again whenever a later chunk changes it; each [A2uiPart] carries the
-  /// messages of one block that are new or changed. See
+  /// messages of one block that are new or changed. A `createSurface` is
+  /// emitted once, after its object closes, since a renderer accepts it only
+  /// once, and the messages after it wait with it. See
   /// `conformance/agent/direct_json/response_streaming.yaml`.
   ///
   /// Throws [ArgumentError] if [wrapped] differs from the first call's,
   /// [A2uiParseError] if a block closes on text that is not JSON, and what
   /// [compile] throws for a block that closes. What [compile] throws for the
   /// catalogs, such as [A2uiCatalogError] for catalogs of different versions,
-  /// is thrown as soon as a block holds part of a message.
+  /// is thrown as soon as a block holds part of a message. For v1.0
+  /// catalogs, what [compile] throws for an `updateComponents` whose
+  /// components have closed is thrown on the chunk that closes them, since
+  /// no later chunk can change them.
   @override
   List<ResponsePart> parseChunk(String chunk, {bool wrapped = true}) {
     if (_wrapped == null) {
@@ -297,23 +315,27 @@ class DirectJsonParser extends Parser {
   /// Emits the messages of [block], the start of a block, that read and are
   /// new or changed.
   void _emitReady(List<ResponsePart> parts, String block) {
-    final List<Object?> envelopes = readPartialMessages(
+    final List<PartialMessage> envelopes = readPartialMessages(
       _cleanStart(block),
       progressiveKeys,
-      wholeItemKeys: bufferIncompleteComponents
-          ? const {'components'}
-          : const {},
+      wholeItemKeys: _buffersComponents ? const {'components'} : const {},
     );
     if (envelopes.isEmpty) return;
     // Read outside the loop, so that catalogs it cannot read throw rather
     // than pass for a message that has not arrived in full.
     final MessageReader reader = _reader;
-    final surfaces = <String, String>{};
+    final bool v1 = reader.version.isAtLeast(A2uiProtocolVersion.v1_0);
+    final surfaces = <String, String?>{};
     final ready = <AgentToRendererMessage>[];
-    for (final envelope in envelopes) {
+    for (final (:Object? message, :bool closed) in envelopes) {
+      // Held until it closes, and nothing after it is emitted ahead of it.
+      if (!closed && message is Map && message.containsKey('createSurface')) {
+        break;
+      }
       try {
-        ready.add(reader.read(envelope, surfaces));
+        ready.add(reader.read(message, surfaces));
       } on A2uiError {
+        if (v1 && _hasClosedComponents(message)) rethrow;
         // Not ready, and nothing after it is emitted ahead of it.
         break;
       }
@@ -339,6 +361,24 @@ class DirectJsonParser extends Parser {
     if (changed.isNotEmpty) parts.add(A2uiPart(changed));
   }
 }
+
+/// Whether [envelope] is a v1.0 `updateComponents` read so far whose
+/// components have all closed, so that no later chunk can change it.
+///
+/// A component is read only once its object closes, and the version and the
+/// surface id are read only once they are whole, so what this message holds
+/// already is what it will hold.
+bool _hasClosedComponents(Object? envelope) => switch (envelope) {
+  {
+    'version': String(),
+    'updateComponents': {
+      'surfaceId': String(),
+      'components': List(isNotEmpty: true),
+    },
+  } =>
+    true,
+  _ => false,
+};
 
 /// The index in [text] from which the rest could still become an open tag,
 /// or the length of [text].

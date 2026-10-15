@@ -44,7 +44,7 @@ void main() {
         for (final testCase in cases) {
           test(
             testCase['name']! as String,
-            () => version.run(() => _runCase(testCase, version)),
+            () => _runCase(testCase, version),
             skip: _skipReason(testCase, version),
           );
         }

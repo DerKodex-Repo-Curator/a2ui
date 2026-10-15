@@ -14,7 +14,7 @@
 
 import 'package:a2ui_core/a2ui_core.dart';
 
-import '../../utils/catalogs.dart';
+import 'catalogs.dart';
 
 /// The fields each v0.9 message body may carry, from `server_to_client.json`,
 /// which closes both the envelope and the body.
@@ -29,9 +29,12 @@ const Map<String, Set<String>> _bodyFields = {
 /// call is nested in them.
 const Set<String> _envelopeKeys = {'id', 'component', 'catalogId', 'metadata'};
 
-/// Reads the decoded messages of one direct JSON payload into messages of
-/// the protocol version [catalogs] target, checking each the way a renderer
-/// holding [catalogs] would check it on its own.
+/// Reads the decoded messages of one payload into messages of the protocol
+/// version [catalogs] target, checking each the way a renderer holding
+/// [catalogs] would check it on its own.
+///
+/// A direct JSON parser reads what the model wrote with it, and the Express
+/// compiler for v1.0 the messages it compiled.
 ///
 /// A payload may update a surface created by an earlier response, so a
 /// message is checked against the surfaces the payload creates and nothing

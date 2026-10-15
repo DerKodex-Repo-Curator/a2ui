@@ -42,12 +42,15 @@ void main() {
     );
   });
 
-  group('v1.0 basic catalog', skip: 'Not implemented yet for v1.0.', () {
+  group('v1.0 basic catalog', () {
     _roundTrips(
       basic: const FileSystemCatalogProvider(
         '../../catalogs/basic/v1/catalog.json',
       ).load(),
       examples: '../../catalogs/basic/v1/examples',
+      expressCannotWrite: const {
+        '00_incremental.json': 'updates the data model below its root',
+      },
     );
   });
 }

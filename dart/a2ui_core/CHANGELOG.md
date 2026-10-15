@@ -6,8 +6,15 @@
   payloads with. It takes the negotiated `CatalogApi`s, holds each function
   as a signature that cannot be invoked, and validates under
   `ValidationConfig.strict` by default. It checks a `callRendererFunction`
-  instead of running it; that check is declared but not implemented yet, and
-  throws `UnimplementedError`.
+  instead of running it, and throws where a renderer would answer it with an
+  error: the surface it names must exist, the catalog it names must be held
+  and target the message's version, and the catalog must declare the
+  function, let the agent call it, and accept its arguments. A function that
+  requires a user activation is accepted only when `processMessages` is
+  given `isUserActivated`.
+- `PayloadValidator.validateFunctionArgs` is public, for an agent that checks
+  each nested call against the catalog it resolves to, as `MessageProcessor`
+  does.
 - Added `AgentToRendererMessage.typesFor`, the message types an agent may
   send in a protocol version.
 - `A2uiRendererCapabilities.fromJson` reads an inline catalog that states no
