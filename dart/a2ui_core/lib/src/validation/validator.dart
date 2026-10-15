@@ -391,14 +391,14 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   /// Checks [args] against [catalog]'s argument schema for [name], leaving
   /// the calls nested in [args] unchecked.
   ///
-  /// For `MessageProcessor`, which has already checked every call's names
-  /// through [validateComponent] and checks each nested call against the
-  /// catalog it resolves to. [componentId] names the component the call is
-  /// nested in, for the error message.
+  /// For a caller that has already checked every call's names through
+  /// [validateComponent] and checks each nested call against the catalog it
+  /// resolves to, as `MessageProcessor` does, and an agent reading a payload
+  /// that names catalogs per call. [componentId] names the component the call
+  /// is nested in, for the error message.
   ///
   /// Throws [A2uiValidationError] if the catalog declares no such function or
   /// the arguments do not match its schema.
-  @internal
   void validateFunctionArgs(
     String name,
     Map<String, Object?> args, {

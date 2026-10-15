@@ -34,6 +34,10 @@ Object? readJson(String text) {
   }
 }
 
+/// One message of a payload still arriving: the message as it reads so far,
+/// and whether its JSON value has closed.
+typedef PartialMessage = ({Object? message, bool closed});
+
 /// The messages of a direct JSON payload of which [text] is the start,
 /// healed so that each reads as the message it is so far.
 ///
@@ -51,7 +55,7 @@ Object? readJson(String text) {
 /// than healed.
 ///
 /// Returns no messages if [text] cannot be the start of a JSON document.
-List<Object?> readPartialMessages(
+List<PartialMessage> readPartialMessages(
   String text,
   Set<String> progressiveKeys, {
   Set<String> wholeItemKeys = const {},
@@ -110,12 +114,12 @@ class _Reader {
     return value;
   }
 
-  List<Object?> messages() {
+  List<PartialMessage> messages() {
     _skipSpace();
     if (_atEnd) return const [];
     if (text[_i] != '[') {
       try {
-        final Object? message = _value(healable: false);
+        final PartialMessage message = _message();
         _skipSpace();
         if (!_atEnd) _fail('unexpected text after the JSON value');
         return [message];
@@ -124,7 +128,7 @@ class _Reader {
       }
     }
     _i++;
-    final messages = <Object?>[];
+    final messages = <PartialMessage>[];
     while (true) {
       _skipSpace();
       if (_atEnd) return messages;
@@ -135,7 +139,7 @@ class _Reader {
         return messages;
       }
       try {
-        messages.add(_value(healable: false));
+        messages.add(_message());
       } on _Unfinished {
         return messages;
       }
@@ -147,6 +151,13 @@ class _Reader {
         _fail("expected ',' or ']'");
       }
     }
+  }
+
+  /// Reads one message, noting whether the text closed it or it was healed.
+  PartialMessage _message() {
+    _cut = false;
+    final Object? message = _value(healable: false);
+    return (message: message, closed: !_cut);
   }
 
   /// Reads one value. [healable] says whether a string value may be closed

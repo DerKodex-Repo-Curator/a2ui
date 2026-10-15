@@ -194,9 +194,6 @@ class MessageProcessor<T extends ComponentApi> {
   /// with an error, rather than being run and answered. An
   /// `agentFunctionResponse` answers a call the renderer made, so it settles
   /// nothing here.
-  ///
-  /// Checking a `callRendererFunction` is not implemented yet and throws
-  /// [UnimplementedError].
   factory MessageProcessor.forAgent({
     required List<Catalog<T, FunctionApi>> catalogs,
     A2uiProtocolVersion? defaultVersion,
@@ -445,7 +442,7 @@ class MessageProcessor<T extends ComponentApi> {
         model.deleteSurface(operation.surfaceId);
       case CallRendererFunctionOp():
         if (_checksOnly) {
-          _checkRendererFunctionCall(operation);
+          _checkRendererFunctionCall(operation, isUserActivated);
           return null;
         }
         return _callRendererFunction(operation, isUserActivated);
@@ -465,13 +462,67 @@ class MessageProcessor<T extends ComponentApi> {
   /// this processor holds, that catalog declares the function, the agent may
   /// call it, and its arguments match its signature.
   ///
+  /// The agent may call a function whose `allowedCallers` is `agentOnly` or
+  /// `rendererOrAgent`, and one that requires a user activation only when
+  /// [isUserActivated] is true. The arguments are checked as written, as a
+  /// component's nested calls are, rather than resolved against the data
+  /// model first, which only the renderer holds.
+  ///
   /// Throws [A2uiValidationError] where a renderer would answer the call
   /// with an `INVALID_FUNCTION_CALL` error, and [A2uiCatalogError] for a
-  /// catalog this processor does not hold.
-  void _checkRendererFunctionCall(CallRendererFunctionOp operation) =>
-      throw UnimplementedError(
-        'MessageProcessor.forAgent checking a callRendererFunction',
+  /// catalog this processor does not hold, or one whose protocol version is
+  /// not the message's.
+  void _checkRendererFunctionCall(
+    CallRendererFunctionOp operation,
+    bool isUserActivated,
+  ) {
+    final subject = "Function call '${operation.functionCallId}'";
+    if (operation.surfaceId case final String surfaceId
+        when model.getSurface(surfaceId) == null) {
+      throw A2uiValidationError(
+        "$subject names surface '$surfaceId', which does not exist.",
       );
+    }
+    final call = FunctionCall.fromJson(operation.callFunction);
+    final String catalogId = call.catalogId ??
+        (throw A2uiValidationError(
+          '$subject names no catalogId, which a callRendererFunction '
+          'requires.',
+        ));
+    final Catalog<T, FunctionImplementation> catalog = catalogFor(catalogId);
+    final String version = operation.version.jsonValue;
+    if (!isCatalogVersionCompatible(
+      catalog.protocolVersion?.jsonValue,
+      version,
+    )) {
+      throw A2uiCatalogError(
+        "$subject names catalog '$catalogId', whose protocol version is not "
+        "the message's '$version'.",
+        catalogId: catalogId,
+      );
+    }
+    final String name = call.call;
+    final FunctionImplementation function = catalog.functions[name] ??
+        (throw A2uiValidationError(
+          "$subject names '$name', which catalog '$catalogId' does not "
+          'declare.',
+        ));
+    if (function.allowedCallers == AllowedCallers.rendererOnly) {
+      throw A2uiValidationError(
+        "$subject names '$name', which only the renderer may call "
+        '(allowedCallers is rendererOnly).',
+      );
+    }
+    if (function.requiresUserActivation && !isUserActivated) {
+      throw A2uiValidationError(
+        "$subject names '$name', which requires a user activation.",
+      );
+    }
+    validatorFor(catalog, version: operation.version).validateFunction(
+      name,
+      call.args.cast<String, Object?>(),
+    );
+  }
 
   /// Hands a `callRendererFunction` to [rpc], targeting the surface named by
   /// [CallRendererFunctionOp.surfaceId] when present, or no surface at all

@@ -21,19 +21,19 @@ import 'package:test/test.dart';
 /// [MessageProcessor.forAgent], which an agent checks its own payloads with,
 /// over the schema-only catalog it negotiated.
 void main() {
-  final CatalogApi catalog = Catalog.fromJson(
-    jsonDecode(
-      File(
-        '../../conformance/test_data/catalogs/simplified_catalog_v1_0.json',
-      ).readAsStringSync(),
-    ) as Map<String, Object?>,
-  );
+  final document = jsonDecode(
+    File(
+      '../../conformance/test_data/catalogs/simplified_catalog_v1_0.json',
+    ).readAsStringSync(),
+  ) as Map<String, Object?>;
+  final CatalogApi catalog = Catalog.fromJson(document);
 
   MessageProcessor<ComponentApi> forAgent({
+    List<CatalogApi>? catalogs,
     ValidationConfig? validationConfig = ValidationConfig.strict,
   }) {
     final MessageProcessor<ComponentApi> processor = MessageProcessor.forAgent(
-      catalogs: [catalog],
+      catalogs: catalogs ?? [catalog],
       validationConfig: validationConfig,
     );
     addTearDown(processor.model.dispose);
@@ -114,77 +114,170 @@ void main() {
   });
 
   group('callRendererFunction', () {
-    const notImplemented =
-        'Checking a callRendererFunction is not implemented yet.';
+    /// The catalog with [function] given [definition] on top of its own.
+    CatalogApi declaring(String function, Map<String, Object?> definition) {
+      final functions = document['functions']! as Map<String, Object?>;
+      return Catalog.fromJson({
+        ...document,
+        'functions': {
+          ...functions,
+          function: {
+            ...functions[function]! as Map<String, Object?>,
+            ...definition,
+          },
+        },
+      });
+    }
 
-    test(
-      'accepts a call to a function the catalog declares',
-      skip: notImplemented,
-      () {
-        forAgent().processMessages([
+    // The fixture declares no allowedCallers, so only the renderer may call
+    // its functions. This copy lets the agent call formatString.
+    final CatalogApi callable = declaring('formatString', {
+      'allowedCallers': 'rendererOrAgent',
+    });
+
+    final Map<String, Object?> formatHello = callRendererFunction({
+      '@call': 'formatString',
+      'args': {'value': 'Hello'},
+    });
+
+    test('accepts a call to a function the agent may call', () {
+      forAgent(catalogs: [callable]).processMessages([formatHello]);
+    });
+
+    test('accepts a call to a function only the agent may call', () {
+      forAgent(
+        catalogs: [
+          declaring('formatString', {'allowedCallers': 'agentOnly'}),
+        ],
+      ).processMessages([formatHello]);
+    });
+
+    test('accepts a call on a surface the processor holds', () {
+      forAgent(catalogs: [callable]).processMessages([
+        createSurface([
+          {'id': 'root', 'component': 'Text', 'text': 'Hello'},
+        ]),
+        {
+          'version': 'v1.0',
+          'callRendererFunction': {
+            'surfaceId': 's',
+            'functionCallId': 'call_1',
+            'callFunction': {
+              'catalogId': catalog.id,
+              '@call': 'formatString',
+              'args': {
+                'value': {'@path': '/name'},
+              },
+            },
+          },
+        },
+      ]);
+    });
+
+    test('rejects a call to a function only the renderer may call', () {
+      expect(
+        () => forAgent().processMessages([formatHello]),
+        throwsA(
+          isA<A2uiValidationError>().having(
+            (e) => e.message,
+            'message',
+            contains('rendererOnly'),
+          ),
+        ),
+      );
+    });
+
+    test('rejects a call needing a user activation without one', () {
+      final MessageProcessor<ComponentApi> processor = forAgent(
+        catalogs: [
+          declaring('openUrl', {'allowedCallers': 'rendererOrAgent'}),
+        ],
+      );
+      final Map<String, Object?> openUrl = callRendererFunction({
+        '@call': 'openUrl',
+        'args': {'url': 'https://example.com'},
+      });
+      expect(
+        () => processor.processMessages([openUrl]),
+        throwsA(isA<A2uiValidationError>()),
+      );
+      processor.processMessages([openUrl], isUserActivated: true);
+    });
+
+    test('rejects a call to a function the catalog does not declare', () {
+      expect(
+        () => forAgent(catalogs: [callable]).processMessages([
+          callRendererFunction({'@call': 'vibrate', 'args': {}}),
+        ]),
+        throwsA(isA<A2uiValidationError>()),
+      );
+    });
+
+    test('rejects arguments that do not match the signature', () {
+      expect(
+        () => forAgent(catalogs: [callable]).processMessages([
           callRendererFunction({
             '@call': 'formatString',
-            'args': {'value': 'Hello'},
+            'args': {'text': 'Hello'},
           }),
-        ]);
-      },
-    );
+        ]),
+        throwsA(isA<A2uiValidationError>()),
+      );
+    });
 
-    test(
-      'rejects a call to a function the catalog does not declare',
-      skip: notImplemented,
-      () {
-        expect(
-          () => forAgent().processMessages([
-            callRendererFunction({'@call': 'vibrate', 'args': {}}),
-          ]),
-          throwsA(isA<A2uiValidationError>()),
-        );
-      },
-    );
-
-    test(
-      'rejects arguments that do not match the signature',
-      skip: notImplemented,
-      () {
-        expect(
-          () => forAgent().processMessages([
-            callRendererFunction({
-              '@call': 'formatString',
-              'args': {'text': 'Hello'},
-            }),
-          ]),
-          throwsA(isA<A2uiValidationError>()),
-        );
-      },
-    );
-
-    test(
-      'rejects a call naming a catalog it does not hold',
-      skip: notImplemented,
-      () {
-        expect(
-          () => forAgent().processMessages([
-            callRendererFunction({
-              'catalogId': 'elsewhere',
-              '@call': 'formatString',
-              'args': {'value': 'Hello'},
-            }),
-          ]),
-          throwsA(isA<A2uiCatalogError>()),
-        );
-      },
-    );
-
-    test('throws until it is implemented', () {
+    test('rejects a call naming a catalog it does not hold', () {
       expect(
-        () => forAgent().processMessages([
+        () => forAgent(catalogs: [callable]).processMessages([
           callRendererFunction({
+            'catalogId': 'elsewhere',
             '@call': 'formatString',
             'args': {'value': 'Hello'},
           }),
         ]),
-        throwsA(isA<UnimplementedError>()),
+        throwsA(isA<A2uiCatalogError>()),
+      );
+    });
+
+    test('rejects a call naming a catalog of another version', () {
+      final CatalogApi v0_9 = Catalog.fromJson({
+        'catalogId': 'example/v0_9',
+        'components': <String, Object?>{},
+        'functions': {
+          'ping': {
+            'type': 'object',
+            'allowedCallers': 'rendererOrAgent',
+            'properties': {
+              'call': {'const': 'ping'},
+              'args': {'type': 'object'},
+            },
+          },
+        },
+      });
+      expect(
+        () => forAgent(catalogs: [v0_9]).processMessages([
+          callRendererFunction({'catalogId': v0_9.id, '@call': 'ping'}),
+        ]),
+        throwsA(isA<A2uiCatalogError>()),
+      );
+    });
+
+    test('rejects a call naming a surface that does not exist', () {
+      expect(
+        () => forAgent(catalogs: [callable]).processMessages([
+          {
+            'version': 'v1.0',
+            'callRendererFunction': {
+              'surfaceId': 'missing',
+              'functionCallId': 'call_1',
+              'callFunction': {
+                'catalogId': catalog.id,
+                '@call': 'formatString',
+                'args': {'value': 'Hello'},
+              },
+            },
+          },
+        ]),
+        throwsA(isA<A2uiValidationError>()),
       );
     });
   });
