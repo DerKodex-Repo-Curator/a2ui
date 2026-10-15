@@ -78,6 +78,29 @@ def test_event_converter_injects_catalog_sequence():
         assert effective_part_converter.__self__._parser.catalogs == list(catalogs)
 
 
+def test_event_converter_reads_custom_catalogs_key():
+    catalog_mock = MagicMock(
+        spec=Catalog, catalog_id="test_catalog", protocol_version="0.9"
+    )
+    invocation_context_mock = MagicMock()
+    invocation_context_mock.session.state = {"custom:catalogs": [catalog_mock]}
+
+    converter = A2uiEventConverter(catalogs_key="custom:catalogs")
+
+    with patch(
+        "google.adk.a2a.converters.event_converter.convert_event_to_a2a_events"
+    ) as mock_base_converter:
+        mock_base_converter.return_value = []
+
+        converter(MagicMock(), invocation_context_mock)
+
+        args, _ = mock_base_converter.call_args
+        effective_part_converter = args[4]
+
+        assert isinstance(effective_part_converter.__self__, A2uiPartConverter)
+        assert effective_part_converter.__self__._parser.catalogs == [catalog_mock]
+
+
 def test_event_converter_falls_back_without_catalog():
     event_mock = MagicMock()
     invocation_context_mock = MagicMock()

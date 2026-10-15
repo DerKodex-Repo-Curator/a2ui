@@ -13,7 +13,8 @@
   The tool describes every catalog in its prompt and validates payloads
   against all of them, and `get_part_converter` passes all of them on.
 - `A2uiEventConverter` reads catalogs from the `system:a2ui_catalogs`
-  session-state key by default, instead of `system:a2ui_catalog`.
+  session-state key by default, instead of `system:a2ui_catalog`. Its
+  `catalog_key` argument is renamed to `catalogs_key`.
 - Add `GenAIFileResolver`, a `FileResolver` that returns
   `google.genai.types.Part` objects. It takes over `to_genai_part`,
   `resolve_all_to_genai_parts` and the `genai_parts` default of
