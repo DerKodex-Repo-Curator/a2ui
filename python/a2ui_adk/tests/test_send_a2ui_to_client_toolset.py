@@ -190,11 +190,46 @@ async def test_send_tool_resolve_multiple_catalogs_from_provider():
     provider.assert_called_once_with(ctx)
 
 
-@pytest.mark.asyncio
-@pytest.mark.parametrize("empty", [[], lambda _ctx: []])
-async def test_send_tool_resolve_catalogs_rejects_empty(empty):
-    tool = SendA2uiToClientToolset._SendA2uiJsonToClientTool(empty, "examples")
+def test_send_tool_init_rejects_empty_catalogs():
     with pytest.raises(A2uiCatalogError, match="at least one A2UI catalog"):
+        SendA2uiToClientToolset._SendA2uiJsonToClientTool([], "examples")
+
+
+@pytest.mark.asyncio
+async def test_send_tool_resolve_catalogs_rejects_empty_from_provider():
+    tool = SendA2uiToClientToolset._SendA2uiJsonToClientTool(
+        lambda _ctx: [], "examples"
+    )
+    with pytest.raises(A2uiCatalogError, match="at least one A2UI catalog"):
+        await tool._resolve_a2ui_catalogs(MagicMock(spec=ReadonlyContext))
+
+
+@pytest.mark.asyncio
+async def test_send_tool_resolve_catalogs_from_generator_is_reusable():
+    first = MagicMock(spec=Catalog)
+    second = MagicMock(spec=Catalog)
+    tool = SendA2uiToClientToolset._SendA2uiJsonToClientTool(
+        (c for c in (first, second)), "examples"
+    )
+    ctx = MagicMock(spec=ReadonlyContext)
+    assert await tool._resolve_a2ui_catalogs(ctx) == [first, second]
+    assert await tool._resolve_a2ui_catalogs(ctx) == [first, second]
+
+
+@pytest.mark.parametrize(
+    "not_a_sequence", [BasicCatalog("0.9"), "catalog"], ids=["catalog", "str"]
+)
+def test_send_tool_init_rejects_non_sequence(not_a_sequence):
+    with pytest.raises(TypeError, match="expects a sequence of A2UI catalogs"):
+        SendA2uiToClientToolset._SendA2uiJsonToClientTool(not_a_sequence, "examples")
+
+
+@pytest.mark.asyncio
+async def test_send_tool_resolve_catalogs_rejects_provider_returning_catalog():
+    tool = SendA2uiToClientToolset._SendA2uiJsonToClientTool(
+        lambda _ctx: BasicCatalog("0.9"), "examples"
+    )
+    with pytest.raises(TypeError, match="expects a sequence of A2UI catalogs"):
         await tool._resolve_a2ui_catalogs(MagicMock(spec=ReadonlyContext))
 
 

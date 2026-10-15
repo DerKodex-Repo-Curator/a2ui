@@ -76,7 +76,7 @@ Usage Examples:
     ```
 """
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 import inspect
 import logging
 from typing import (
@@ -95,7 +95,7 @@ from google.adk.tools import tool_context
 from google.adk.utils.feature_decorator import experimental
 from google.genai import types as genai_types
 
-from a2ui.core import A2uiCatalogError, A2uiValidationError, CatalogApi
+from a2ui.core import A2uiCatalogError, A2uiValidationError, Catalog, CatalogApi
 from a2ui.inference_formats.direct_json import schema_to_prompt
 from a2ui.parser import parse_and_fix
 from a2ui.schema import constants
@@ -224,7 +224,11 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
             a2ui_catalogs: Sequence[CatalogApi] | A2uiCatalogsProvider,
             a2ui_examples: str | A2uiExamplesProvider,
         ):
-            self._a2ui_catalogs = a2ui_catalogs
+            self._a2ui_catalogs: list[CatalogApi] | A2uiCatalogsProvider = (
+                a2ui_catalogs
+                if callable(a2ui_catalogs)
+                else self._to_catalog_list(a2ui_catalogs)
+            )
             self._a2ui_examples = a2ui_examples
             super().__init__(
                 name=self.TOOL_NAME,
@@ -274,6 +278,33 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
                     a2ui_examples = await a2ui_examples
                 return a2ui_examples
 
+        def _to_catalog_list(self, catalogs: Iterable[CatalogApi]) -> list[CatalogApi]:
+            """Checks catalogs and returns them as a list.
+
+            Args:
+                catalogs: The catalogs given to the tool or returned by its
+                  provider.
+
+            Returns:
+                The catalogs as a list, in their original order.
+
+            Raises:
+                A2uiCatalogError: If there are no catalogs.
+                TypeError: If a single catalog, a string or bytes is given in
+                  place of an iterable of catalogs.
+            """
+            if isinstance(catalogs, (Catalog, str, bytes)):
+                raise TypeError(
+                    f"Tool {self.TOOL_NAME} expects a sequence of A2UI catalogs,"
+                    f" got {type(catalogs).__name__}."
+                )
+            catalogs_list = list(catalogs)
+            if not catalogs_list:
+                raise A2uiCatalogError(
+                    f"Tool {self.TOOL_NAME} requires at least one A2UI catalog."
+                )
+            return catalogs_list
+
         async def _resolve_a2ui_catalogs(
             self, ctx: readonly_context.ReadonlyContext
         ) -> list[CatalogApi]:
@@ -286,20 +317,16 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
                 The A2UI catalogs.
 
             Raises:
-                A2uiCatalogError: If no catalogs are resolved.
+                A2uiCatalogError: If the provider returns no catalogs.
+                TypeError: If the provider returns a single catalog, a string or
+                  bytes in place of a sequence of catalogs.
             """
-            if isinstance(self._a2ui_catalogs, Sequence):
-                catalogs = self._a2ui_catalogs
-            else:
-                resolved = self._a2ui_catalogs(ctx)
-                if inspect.isawaitable(resolved):
-                    resolved = await resolved
-                catalogs = resolved
-            if not catalogs:
-                raise A2uiCatalogError(
-                    f"Tool {self.TOOL_NAME} requires at least one A2UI catalog."
-                )
-            return list(catalogs)
+            if not callable(self._a2ui_catalogs):
+                return self._a2ui_catalogs
+            resolved = self._a2ui_catalogs(ctx)
+            if inspect.isawaitable(resolved):
+                resolved = await resolved
+            return self._to_catalog_list(resolved)
 
         async def process_llm_request(
             self,
