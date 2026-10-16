@@ -161,7 +161,7 @@ agent = LlmAgent(
     name="Your agent name",
     description="Your agent description.",
     instruction=instruction,
-    tools=[Your tools],
+    tools=[],  # Your tools
 )
 runner = Runner(app_name=APP_NAME, agent=agent, session_service=session_service)
 ```
@@ -506,6 +506,7 @@ extensions = [
 version = try_activate_a2ui_extension(context, self.agent_card)
 
 if version:
+    capabilities = context.message.metadata.get(A2UI_CLIENT_CAPABILITIES_KEY)
     processor = generators[version].create_processor(capabilities)
     runner = build_runner(build_instruction(processor))
 else:
