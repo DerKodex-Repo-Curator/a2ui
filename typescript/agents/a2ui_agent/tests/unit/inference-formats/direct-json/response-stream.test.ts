@@ -109,6 +109,28 @@ describe('DirectJsonResponseStream', () => {
     expect(stream(parser, [...response])).toEqual([create]);
   });
 
+  it('leaves the state unchanged when a chunk fails after applying a block', () => {
+    // A chunk that throws returns no parts, so the state keeps none of it.
+    const parser = new DirectJsonParser([basicV09]);
+    const state = new RendererState([basicV09]);
+    const block = (surfaceId: string, text: Message) =>
+      OPEN +
+      JSON.stringify([
+        {version: 'v0.9', createSurface: {surfaceId, catalogId: basicV09.id}},
+        {
+          version: 'v0.9',
+          updateComponents: {surfaceId, components: [{id: 'root', ...text}]},
+        },
+      ]) +
+      CLOSE;
+    const opened = parser.openStream({state});
+
+    expect(() =>
+      opened.feed(block('s1', {component: 'Text', text: 'Hi'}) + block('s2', {component: 'Text'})),
+    ).toThrow(A2uiValidationError);
+    expect(state.surfaceIds).toEqual([]);
+  });
+
   it('checks each v1.0 surface against the catalog it was created with', () => {
     const parser = new DirectJsonParser([basicV10, customV10]);
 

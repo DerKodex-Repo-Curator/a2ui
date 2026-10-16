@@ -92,7 +92,10 @@ export class DirectJsonResponseStream implements ResponseStream {
       throw new Error('The response stream is closed.');
     }
     try {
-      return this.read(chunk);
+      // A chunk may apply messages and then fail, for example in a second block, before its
+      // parts are returned. The transaction undoes them, so the state holds only what was
+      // emitted.
+      return this.state.transaction(() => this.read(chunk));
     } catch (e) {
       this.closed = true;
       throw e;
