@@ -23,7 +23,7 @@ that version is valid in the package. Every later feature is a compile error,
 whatever SDK is installed. The packages do not all require the same version,
 so read the `pubspec.yaml` of the package you are changing. For example,
 `dart/a2ui_core` requires `>=3.5.0` and `dart/a2ui_agent` requires
-`>=3.10.0`, so `{'catalogId': ?catalogId}` is valid in `a2ui_agent` and a
+`>=3.8.0`, so `{'catalogId': ?catalogId}` is valid in `a2ui_agent` and a
 compile error in `a2ui_core`.
 
 Features that assistants often misjudge, with the version that added each:
@@ -85,7 +85,12 @@ includes it and adds exclusions. The settings that most often fail a change:
 - `specify_nonobvious_local_variable_types` and
   `omit_obvious_local_variable_types`: write the type of a local variable when
   its initializer does not make the type obvious, and leave it off when it
-  does.
+  does. A literal, such as `3` or `<int>[]`, a constructor call with type
+  arguments, such as `List<int>.of(xs)`, and a local variable or parameter
+  make the type obvious. A getter or method call, such as `map.entries` or
+  `xs.first`, does not, and neither does `List.of(xs)`. The variable of a
+  `for (... in ...)` loop follows the same rule, with the iterable in place of
+  the initializer.
 - `prefer_relative_imports` for imports within a package's `lib/`.
 - `comment_references`: a name in `[brackets]` in a doc comment must resolve.
 - `unawaited_futures`: await a future, or pass it to `unawaited`.
