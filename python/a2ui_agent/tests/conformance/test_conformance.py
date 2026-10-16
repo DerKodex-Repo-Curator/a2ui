@@ -43,7 +43,7 @@ from a2ui.parser import RawResponsePart
 from a2ui.parser import TextPart
 from a2ui.processor import CatalogConfig
 from a2ui.processor import InMemoryCatalogProvider
-from a2ui.utils import RendererState, load_examples, resolve_catalogs
+from a2ui.utils import load_examples, resolve_catalogs, validate_payload
 
 from .conformance_helpers import get_conformance_path
 from .conformance_helpers import load_conformance_json as load_json_file
@@ -249,28 +249,23 @@ def _protocol_version(catalogs) -> str:
     return version if version.startswith("v") else f"v{version}"
 
 
-def existing_state(args):
-    """The renderer state a case starts from, or None for an empty one.
+def compile_checked(parser, content):
+    """Compiles one block and checks its messages on their own.
 
-    `args.history` lists the messages the renderer received before the case.
+    A conformance `compile` case fixes the messages an agent sends for one
+    block, so they are checked the way `validate_payload` checks a payload: a
+    surface that the block updates without creating is assumed to exist. A
+    failure to compile that isn't an `A2uiError` is raised as
+    `A2uiCompilationError`, as `parse_response` raises it.
     """
-    history = args.get("history")
-    if not history:
-        return None
-    state = RendererState(_catalogs_for(args))
-    state.apply(history)
-    return state
-
-
-def compile_checked(parser, content, state=None):
-    """Compiles one block and checks its messages, as an agent does before sending.
-
-    A conformance `compile` case fixes the messages an agent sends, so the
-    block goes through `parse_response`, which checks what `Parser.compile`
-    produces.
-    """
-    parts = parser.parse_response(content, wrapped=False, state=state)
-    return parts[0].a2ui
+    try:
+        messages = parser.compile(content)
+    except A2uiError:
+        raise
+    except Exception as e:
+        raise A2uiCompilationError(f"Failed to compile A2UI block: {e}", content) from e
+    validate_payload(parser.catalogs, messages)
+    return to_message_models(messages)
 
 
 def make_parser(args):
@@ -410,14 +405,12 @@ def test_compiler_conformance(name, test_case):
     parser = make_parser(test_case["args"])
     payload = test_case["input"]
 
-    state = existing_state(test_case["args"])
-
     if "expect_error" in test_case:
         with assert_raises(test_case["expect_error"]):
-            compile_checked(parser, payload, state)
+            compile_checked(parser, payload)
         return
 
-    raw_compiled = compile_checked(parser, payload, state)
+    raw_compiled = compile_checked(parser, payload)
     assert isinstance(raw_compiled, list)
     assert all(hasattr(m, "model_dump") for m in raw_compiled)
     compiled = to_message_dicts(raw_compiled)
@@ -450,8 +443,7 @@ def test_decompiler_conformance(name, test_case):
         assert fragment not in notation, f"{fragment!r} unexpectedly in {notation!r}"
 
     def recompile():
-        state = existing_state(test_case["args"])
-        return to_message_dicts(compile_checked(parser, notation, state))
+        return to_message_dicts(compile_checked(parser, notation))
 
     if test_case.get("expect_round_trip"):
         assert recompile() == messages
@@ -544,7 +536,7 @@ def test_response_parser_conformance(name, test_case):
             assert_raw_parts_match(parser.unwrap(output), parts)
 
     elif action == "parse_response":
-        kwargs: dict[str, Any] = {"state": existing_state(args)}
+        kwargs: dict[str, Any] = {}
         if not args.get("wrapped", True):
             kwargs["wrapped"] = False
 
@@ -571,7 +563,7 @@ cases_response_streaming = get_marked_conformance_cases(
 def test_response_streaming_conformance(name, test_case):
     args = test_case["args"]
     wrapped = args.get("wrapped", True)
-    stream = make_parser(args).open_stream(wrapped=wrapped, state=existing_state(args))
+    stream = make_parser(args).open_stream(wrapped=wrapped)
     chunks: list[str] = []
     yielded: list[dict] = []
 
@@ -593,7 +585,7 @@ def test_response_streaming_conformance(name, test_case):
     if test_case.get("expect_matches_single_shot"):
         fresh_parser = make_parser(args)
         single_shot_parts = fresh_parser.parse_response(
-            "".join(chunks), wrapped=wrapped, state=existing_state(args)
+            "".join(chunks), wrapped=wrapped
         )
         assert [part_to_dict(p) for p in single_shot_parts] == yielded
 

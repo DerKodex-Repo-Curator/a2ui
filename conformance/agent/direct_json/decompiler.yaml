@@ -36,10 +36,8 @@
 # v1.0. A case states no version of its own: the version it runs under is the
 # one its catalog document declares.
 
-# `args.history` lists the messages the renderer received before the case
-# starts. A case that updates a surface it does not create puts the surface's
-# `createSurface` there, since a renderer rejects an update to a surface it
-# does not hold.
+# A round trip checks the recompiled block on its own, as `validate_payload`
+# does: a surface that the block updates without creating is assumed to exist.
 
 - name: test_decompile_json_messages
   description: Messages are written back out as the JSON a model would have emitted, and compiling that returns them.
@@ -68,8 +66,6 @@
   description: A data model update writes back out with its path and value, so an example that changes state can be authored from messages.
   action: decompile
   args:
-    history:
-      - {version: "v1.0", createSurface: {surfaceId: "s1", catalogId: "conformance/simplified"}}
     format: direct_json
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:

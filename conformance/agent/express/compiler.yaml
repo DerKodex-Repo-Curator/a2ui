@@ -101,10 +101,8 @@
 # v1.0. A case states no version of its own: the version it runs under is the
 # one its catalog document declares.
 
-# `args.history` lists the messages the renderer received before the case
-# starts. A case that updates a surface it does not create puts the surface's
-# `createSurface` there, since a renderer rejects an update to a surface it
-# does not hold.
+# A compile case checks the block on its own, as `validate_payload` does: a
+# surface that the block updates without creating is assumed to exist.
 
 - name: test_compile_express_minimal_root
   description: A block that assigns root compiles to one createSurface carrying that component.
@@ -455,8 +453,6 @@
   description: A block of nothing but data path assignments updates the data model rather than creating a surface.
   action: compile
   args:
-    history:
-      - {version: "v1.0", createSurface: {surfaceId: "default_surface", catalogId: "conformance/simplified"}}
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: |-
