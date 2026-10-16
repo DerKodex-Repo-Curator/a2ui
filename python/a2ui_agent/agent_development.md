@@ -89,54 +89,91 @@ Notes:
   one for the version that the request activates.
   See [Multiple Version Support](#3-multiple-version-support) for more details.
 
-### Step 2: Generate System Prompt
+#### Choose an Inference Format
 
-Use the request's `processor.prompt_snippet` to produce the A2UI format and
-schema prompt snippet, and combine it with your agent's role/workflow
-instructions and optional few-shot examples loaded via `load_examples`. The
-snippet describes the catalogs negotiated for the request, including inline
-catalogs that the client sent, so build the prompt per request.
+The inference format is the notation the model writes A2UI in. The generator's
+format factory decides it, and every processor the generator creates uses it
+for both the prompt snippet and the parser.
+
+- **Direct JSON** (`DirectJsonFormatFactory`, the default): the model writes
+  A2UI messages as JSON inside `<a2ui-json>` tags. It is the only format that
+  streams: `processor.open_stream()` emits each message as soon as it reads
+  whole (see [Option B](#option-b-incremental-streaming-parsing-advanced)).
+- **Express** (`ExpressFormatFactory`): the model writes a compact notation
+  inside `<a2ui>` tags, which the SDK compiles into A2UI messages. It needs far
+  fewer output tokens than JSON, so a whole response arrives sooner. An Express
+  block resolves references across its whole body, so it doesn't stream:
+  parse the response with `processor.parse_response()`.
 
 ```python
-from a2ui.utils import load_examples
+from a2ui.inference_formats import DirectJsonFormatFactory, ExpressFormatFactory
 
-examples = load_examples(
-    processor.active_catalogs,
-    "path/to/examples",
-    validate=True,
-)
+# The default, written out.
+generator = A2uiGenerator(catalogs, inference_format_factory=DirectJsonFormatFactory())
+
+# Express, for lower latency on whole responses.
+generator = A2uiGenerator(catalogs, inference_format_factory=ExpressFormatFactory())
+```
+
+`create_processor` also takes an `inference_format_factory` that overrides the
+generator's for one request.
+
+### Step 2: Generate System Prompt
+
+Use the request's `processor.prompt_snippet` to produce the A2UI part of the
+system prompt, and combine it with your agent's role and workflow
+instructions. The snippet describes the format, the catalogs negotiated for
+the request (including inline catalogs that the client sent), and the
+generator's examples, so build the prompt per request.
+
+```python
 instruction = "\n\n".join([
     "You are a helpful assistant...",
     "# Workflow\nAnalyze the request and return UI...",
-    "# UI Description\nUse the following components...",
     processor.prompt_snippet,
-    examples,
 ])
 ```
 
-To save tokens, prune the catalogs with a transformer on the generator's
-`CatalogConfig`, rather than when generating the prompt.
+Give few-shot examples to the generator, as message turns, rather than adding
+them to the prompt yourself. Creating a processor checks each example against
+the request's catalogs, and the snippet writes them in the format's notation,
+so the same examples serve Direct JSON and Express.
+
+```python
+import json
+
+from a2ui.inference_formats import to_message_models
+
+with open("path/to/examples/contact_card.json", encoding="utf-8") as f:
+    contact_card = to_message_models(json.load(f))
+
+generator = A2uiGenerator(catalogs, examples=[contact_card])
+```
+
+To save tokens, shape what the snippet describes when you set up the
+generator:
 
 ```python
 from a2ui.catalog_transformers import ComponentPruningTransformer
-from a2ui.inference_formats.direct_json import schema_to_prompt
+from a2ui.inference_formats import DirectJsonFormatFactory
 from a2ui.processor import A2uiGenerator, CatalogConfig
 
-# Keep only some components in the catalog that the prompt describes.
-generator = A2uiGenerator([
-    CatalogConfig(
-        BasicCatalog(ProtocolVersion.V0_9),
-        transformers=[ComponentPruningTransformer(["Text", "Button", "Column"])],
-    )
-])
-processor = generator.create_processor(capabilities)
-
-# Keep only some messages in the agent-to-renderer schema.
-schema_text = schema_to_prompt(
-    processor.active_catalogs,
-    allowed_messages=["CreateSurfaceMessage", "UpdateComponentsMessage"],
+generator = A2uiGenerator(
+    [
+        # Keep only some components of the catalog.
+        CatalogConfig(
+            BasicCatalog(ProtocolVersion.V0_9),
+            transformers=[ComponentPruningTransformer(["Text", "Button", "Column"])],
+        )
+    ],
+    # Keep only some messages of the agent-to-renderer schema.
+    inference_format_factory=DirectJsonFormatFactory(
+        allowed_messages=["createSurface", "updateComponents"],
+    ),
 )
 ```
+
+`ExpressFormatFactory` takes `allowed_messages` too.
 
 ### Step 3: Build an LLM Agent with the System Prompt
 
@@ -262,7 +299,7 @@ To wrap single messages yourself, use the `create_a2ui_part` helper.
 
 ##### Option B: Incremental Streaming Parsing (Advanced)
 
-Use this approach for sub-second UI updates. The `DirectJsonParser` **automatically parses, validates, and fixes (heals)** the JSON payload chunks _incrementally_ as they arrive from the LLM stream. It yields valid UI messages _before_ the entire JSON block is complete by automatically closing open quotes and braces. Open the stream with `processor.open_stream()`, so that it validates against `processor.active_catalogs` and heals the format's progressive keys. From v1.0 on, the parser holds all of the processor's active catalogs and checks each component against the catalog that the component or its surface's `createSurface` names.
+Use this approach for sub-second UI updates. It needs the Direct JSON format, the only one that streams; `open_stream()` raises `NotImplementedError` for Express. The stream **automatically parses, validates, and fixes (heals)** the JSON payload chunks _incrementally_ as they arrive from the LLM stream. It yields valid UI messages _before_ the entire JSON block is complete by automatically closing open quotes and braces. Open the stream with `processor.open_stream()`, so that it validates against `processor.active_catalogs` and heals the format's progressive keys. From v1.0 on, the parser holds all of the processor's active catalogs and checks each component against the catalog that the component or its surface's `createSurface` names.
 
 > [!IMPORTANT]
 > **Prerequisite**: To use incremental streaming, your agent executor must support streaming mode. In ADK, enable this using `RunConfig`:
@@ -284,16 +321,21 @@ for chunk in llm_response_stream:
     # Yield text and partial UI updates as soon as they are ready.
     yield {"is_task_complete": False, "parts": to_a2a_parts(stream.feed(chunk.text))}
 
-# Emits text still held back, and raises if a block was left open.
+# After the last chunk, close the stream. It emits the text still held back as a
+# possible tag, and raises if a block was left open.
 yield {"is_task_complete": False, "parts": to_a2a_parts(stream.close())}
 ```
+
+Always call `close()` after the last chunk: without it, trailing text that
+could still have started a tag is never emitted, and a block the model left
+open goes unreported.
 
 `feed` and `close` raise an `A2uiError` when a message is invalid. Messages
 emitted before the error were valid and have been sent, so a retry starts from
 the UI they built.
 
-`stream_response_to_parts` from `a2ui.a2a` runs the same loop and converts the
-parts to A2A parts:
+`stream_response_to_parts` from `a2ui.a2a` runs the same loop, closes the
+stream after the last token, and converts the parts to A2A parts:
 
 ```python
 from a2ui.a2a import stream_response_to_parts
@@ -310,7 +352,7 @@ except A2uiError as e:
 ```
 
 > [!TIP]
-> `DirectJsonParser` performs content-based change detection to ensure components are only re-yielded if their content changes, minimizing bandwidth usage.
+> The Direct JSON stream performs content-based change detection to ensure components are only re-yielded if their content changes, minimizing bandwidth usage.
 
 #### 4d. Chat and Canvas UIs
 
