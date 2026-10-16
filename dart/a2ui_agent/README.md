@@ -54,9 +54,12 @@ What v1.0 adds to both formats:
   as [multi_catalog_formats.yaml](../../conformance/agent/multi_catalog_formats.yaml)
   describes. In Express, a name that several catalogs declare takes a
   `catalogId` argument.
-- A `callRendererFunction` asks the renderer to run a function. A response
-  may call only a function whose `allowedCallers` lets the agent call it, as
-  `a2ui_core`'s `MessageProcessor.forAgent` checks. In Express it is a
+- A `callRendererFunction` asks the renderer to run a function.
+  `processor.parseResponse` accepts a call only to a function whose
+  `allowedCallers` lets the agent call it and that needs no user activation,
+  as `a2ui_core`'s `MessageProcessor.forAgent` checks. A parser's `compile`
+  and `parseChunk` check only the call's arguments, so check a streamed call
+  before delivering it. In Express it is a
   function call written as a statement of its own, and the prompt names the
   functions that can be called this way.
 - The direct JSON parser holds a streamed component back until its object
