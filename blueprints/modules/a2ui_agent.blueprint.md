@@ -239,6 +239,8 @@ ResponsePart = Union[TextPart, A2uiPart]
 
 Base interface for response parsers across all inference format strategies.
 
+The optional `state` argument of the parsing methods, and of `A2uiRequestProcessor` and `A2uiGenerator.create_processor`, is meant to be passed by name in languages that have named arguments.
+
 A parser knows only its own format. It reads its own sentinel tags and treats everything else in a response as conversational text, including a block in another format's tags: a model that shows the other notation in prose has written text, not a payload, and adding a format must not require changing the parsers of the existing ones.
 
 ```python
@@ -330,7 +332,6 @@ class Parser(ABC):
         self,
         content: str,
         wrapped: bool = True,
-        *,
         state: Optional[RendererState] = None,
     ) -> list[ResponsePart]:
         """Parses a complete response, preserving the order of text and A2UI payload blocks.
@@ -372,7 +373,6 @@ class Parser(ABC):
 
     def open_stream(
         self,
-        *,
         wrapped: bool = True,
         state: Optional[RendererState] = None,
     ) -> ResponseStream:
@@ -778,7 +778,6 @@ class A2uiGenerator:
         self,
         renderer_capabilities: A2uiRendererCapabilities,
         inference_format_factory: Optional[InferenceFormatFactory] = None,
-        *,
         state: Optional[RendererState] = None,
     ) -> A2uiRequestProcessor:
         """Creates an A2uiRequestProcessor bound to the specified renderer capabilities.
@@ -816,7 +815,6 @@ class A2uiRequestProcessor:
         catalogs: Sequence[CatalogApi],
         examples: Optional[Sequence[Sequence[AgentToRendererMessage]]] = None,
         format_factory: Optional[InferenceFormatFactory] = None,
-        *,
         state: Optional[RendererState] = None,
     ):
         """Initializes A2uiRequestProcessor with the active catalogs and format strategy.
@@ -869,7 +867,6 @@ class A2uiRequestProcessor:
         self,
         content: str,
         wrapped: bool = True,
-        *,
         state: Optional[RendererState] = None,
     ) -> list[ResponsePart]:
         """Parses and validates a whole response, as Parser.parse_response does.
@@ -881,7 +878,6 @@ class A2uiRequestProcessor:
 
     def open_stream(
         self,
-        *,
         wrapped: bool = True,
         state: Optional[RendererState] = None,
     ) -> ResponseStream:
@@ -1097,7 +1093,6 @@ class DirectJsonParser(Parser):
 
     def open_stream(
         self,
-        *,
         wrapped: bool = True,
         state: Optional[RendererState] = None,
     ) -> DirectJsonResponseStream:
