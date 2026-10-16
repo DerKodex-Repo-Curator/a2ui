@@ -61,6 +61,27 @@ function catalog(catalogId: string, ...components: string[]) {
   ).load();
 }
 
+/** A v0.9 catalog whose Text has a `size` of the given JSON type. */
+function sizedTextCatalog(catalogId: string, sizeType: string) {
+  return new InMemoryCatalogProvider(
+    {
+      catalogId,
+      components: {
+        Text: {
+          type: 'object',
+          properties: {
+            component: {const: 'Text'},
+            text: {type: 'string'},
+            size: {type: sizeType},
+          },
+          required: ['component', 'text'],
+        },
+      },
+    },
+    'v0.9',
+  ).load();
+}
+
 describe('validatePayload', () => {
   const basicId = BASIC_CATALOG_IDS['v0.9'];
 
@@ -149,6 +170,53 @@ describe('validatePayload', () => {
     const state = new RendererState(catalogs);
     state.apply(create('a'));
     expect(() => state.apply(cardUpdate)).toThrow(A2uiValidationError);
+  });
+
+  it('assumes an updated surface on a catalog that accepts every update to it', () => {
+    // Both catalogs accept the first update, and only "b" accepts the second.
+    const catalogs = [sizedTextCatalog('a', 'string'), sizedTextCatalog('b', 'number')];
+
+    validatePayload(catalogs, [
+      update({id: 't', component: 'Text', text: 'Hi'}),
+      update({id: 't', component: 'Text', text: 'Hi', size: 12}),
+    ]);
+  });
+
+  it('reports the first catalog error when no catalog accepts every update', () => {
+    const catalogs = [sizedTextCatalog('a', 'string'), sizedTextCatalog('b', 'number')];
+
+    expect(() =>
+      validatePayload(catalogs, [
+        update({id: 't', component: 'Text', text: 'Hi', size: 12}),
+        update({id: 't', component: 'Text', text: 'Hi', size: 'big'}),
+      ]),
+    ).toThrow(/size/);
+  });
+
+  it('does not assume a surface that an earlier message deleted', () => {
+    expect(() =>
+      validatePayload(
+        [BASIC],
+        [
+          create(basicId),
+          update(COLUMN, TEXT),
+          {version: 'v0.9', deleteSurface: {surfaceId: 's'}},
+          update(TEXT),
+        ],
+      ),
+    ).toThrow(A2uiValidationError);
+  });
+
+  it('accepts a surface recreated after a delete', () => {
+    validatePayload(
+      [BASIC],
+      [
+        update(TEXT),
+        {version: 'v0.9', deleteSurface: {surfaceId: 's'}},
+        create(basicId),
+        update(COLUMN, TEXT),
+      ],
+    );
   });
 
   it('rejects a surface on a catalog it does not hold', () => {

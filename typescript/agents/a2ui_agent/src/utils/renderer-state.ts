@@ -179,8 +179,8 @@ export class RendererState {
     messages.forEach((message, index) => this.checkMessage(message, index));
     const touched = new Set<string>();
     this.frame(() => {
-      for (const message of messages) {
-        const surfaceId = this.applyMessage(message, messages);
+      for (let index = 0; index < messages.length; index++) {
+        const surfaceId = this.applyMessage(messages, index);
         if (surfaceId !== undefined) {
           touched.add(surfaceId);
         }
@@ -309,8 +309,9 @@ export class RendererState {
     asValidationError(() => this.processor.processMessages(messages as never));
   }
 
-  /** Applies one message and returns the surface it targets, if any. */
-  private applyMessage(message: Message, payload: Message[]): string | undefined {
+  /** Applies the message at `index` and returns the surface it targets, if any. */
+  private applyMessage(payload: Message[], index: number): string | undefined {
+    const message = payload[index];
     const [surfaceId, creates] = target(message);
     if (surfaceId === undefined) {
       this.process([message]);
@@ -325,8 +326,11 @@ export class RendererState {
       this.process([message]);
       this.assumed.delete(surfaceId);
       this.changed.delete(surfaceId);
-    } else if (!this.processor.model.getSurface(surfaceId) && this.assumesUnknownSurfaces) {
-      this.assumeSurface(surfaceId, message, payload);
+    } else if (
+      !this.processor.model.getSurface(surfaceId) &&
+      this.assumes(surfaceId, payload, index)
+    ) {
+      this.assumeSurface(surfaceId, payload, index);
     } else {
       this.process([message]);
     }
@@ -344,13 +348,32 @@ export class RendererState {
   }
 
   /**
+   * Whether an update to a surface the state lacks assumes the surface.
+   *
+   * A payload state assumes a surface the payload never named before, but not one that an
+   * earlier message of the payload deleted: a renderer rejects updates to it.
+   */
+  private assumes(surfaceId: string, payload: Message[], index: number): boolean {
+    return (
+      this.assumesUnknownSurfaces &&
+      payload.slice(0, index).every(message => target(message)[0] !== surfaceId)
+    );
+  }
+
+  /**
    * Creates a placeholder for an unknown surface and applies the update.
    *
-   * The surface is created on each catalog that defines every component the payload adds to
-   * it, until one accepts the update. If none does, the error from the first is thrown.
+   * The updates to the surface are the message at `index` and the messages after it that
+   * update the surface, up to one that creates or deletes it. The surface is created on each
+   * catalog that defines every component those updates add, until one accepts all of them,
+   * so a later update can rule out a catalog that the first one fits. If none does, the error
+   * from the first is thrown. Only the first update is applied here; the others are applied
+   * in turn.
    */
-  private assumeSurface(surfaceId: string, message: Message, payload: Message[]): void {
-    const types = componentTypes(payload.filter(m => target(m)[0] === surfaceId));
+  private assumeSurface(surfaceId: string, payload: Message[], index: number): void {
+    const message = payload[index];
+    const updates = surfaceUpdates(surfaceId, payload, index);
+    const types = componentTypes(updates);
     let candidates = this._catalogs.filter(catalog =>
       [...types].every(name => catalog.components.has(name)),
     );
@@ -363,25 +386,34 @@ export class RendererState {
         createSurface: {surfaceId, catalogId: catalog.id},
       };
       try {
-        this.process([placeholder, message]);
+        this.process([placeholder, ...updates]);
       } catch (e) {
         if (!(e instanceof A2uiValidationError)) throw e;
-        this.processor.model.deleteSurface(surfaceId);
         errors.push(e);
         continue;
+      } finally {
+        this.processor.model.deleteSurface(surfaceId);
       }
+      this.process([placeholder, message]);
       this.assumed.add(surfaceId);
       return;
     }
     throw errors[0];
   }
 
-  /** Throws if a message doesn't match its schema or states the wrong version. */
+  /**
+   * Throws if a message states the wrong version or doesn't match its schema.
+   *
+   * The version is checked first, since the envelope schemas require their own version and
+   * would report a wrong one less clearly.
+   */
   private checkMessage(message: Message, index: number): void {
-    validateEnvelope(message, this.releaseLine);
     const accepted = MESSAGE_VERSIONS[this.releaseLine];
     const stated = message.version;
-    if (typeof stated === 'string' && accepted.includes(stated)) return;
+    if (typeof stated === 'string' && accepted.includes(stated)) {
+      validateEnvelope(message, this.releaseLine);
+      return;
+    }
     if (stated === undefined || stated === null) {
       throw new A2uiValidationError(
         `Message ${index} states no version, which ${this.releaseLine} messages require.`,
@@ -481,6 +513,21 @@ function target(message: Message): [string | undefined, boolean] {
     }
   }
   return [undefined, false];
+}
+
+/**
+ * The updates to a surface from `index` of a payload on. They end before the next message
+ * that creates or deletes the surface.
+ */
+function surfaceUpdates(surfaceId: string, payload: Message[], index: number): Message[] {
+  const updates: Message[] = [];
+  for (const message of payload.slice(index)) {
+    const [targetId, creates] = target(message);
+    if (targetId !== surfaceId) continue;
+    if (updates.length > 0 && (creates || 'deleteSurface' in message)) break;
+    updates.push(message);
+  }
+  return updates;
 }
 
 /** Returns the component list of each action of a message that holds one. */
