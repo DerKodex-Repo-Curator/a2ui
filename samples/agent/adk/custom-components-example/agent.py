@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections import OrderedDict
 from collections.abc import AsyncIterable, AsyncIterator, Mapping, Sequence
 import json
 import logging
@@ -56,6 +57,8 @@ from tools import get_contact_info
 logger = logging.getLogger(__name__)
 
 MAX_ATTEMPTS = 2
+# How many conversations' renderer states to keep in memory.
+_MAX_RENDERER_STATES = 1000
 
 
 def _catalog_keys(catalogs: Sequence[CatalogApi]) -> list[tuple[str, str]]:
@@ -95,8 +98,9 @@ class ContactAgent:
         # What each conversation's renderer shows. A later turn may update
         # the surfaces that an earlier turn created, such as the contact card
         # after a click on the org chart, so responses are checked against
-        # the UI of the whole conversation.
-        self._renderer_states: dict[str, RendererState] = {}
+        # the UI of the whole conversation. The least recently used states
+        # are dropped once there are more than `_MAX_RENDERER_STATES`.
+        self._renderer_states: OrderedDict[str, RendererState] = OrderedDict()
         self._agent_card = self._build_agent_card()
 
     @property
@@ -127,6 +131,9 @@ class ContactAgent:
         ):
             state = processor.create_state()
             self._renderer_states[session_id] = state
+        self._renderer_states.move_to_end(session_id)
+        if len(self._renderer_states) > _MAX_RENDERER_STATES:
+            self._renderer_states.popitem(last=False)
         return state
 
     def _build_agent_card(self) -> AgentCard:

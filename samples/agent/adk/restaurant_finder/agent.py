@@ -76,7 +76,7 @@ class RestaurantAgent:
         self._artifact_service = InMemoryArtifactService()
         self._memory_service = InMemoryMemoryService()
         self._text_runner = self._build_runner(get_text_prompt())
-        self._generators: dict[str, A2uiGenerator] = {
+        self._generators: dict[ProtocolVersion, A2uiGenerator] = {
             version: A2uiGenerator(
                 [CatalogConfig(BasicCatalog(version))],
                 examples=load_example_turns(version),
