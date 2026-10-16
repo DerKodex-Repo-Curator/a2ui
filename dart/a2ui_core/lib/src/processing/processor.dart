@@ -140,6 +140,10 @@ class MessageProcessor<T extends ComponentApi> {
   /// Each catalog's child-reference fields, by catalog id, built on first use.
   final Map<String, Map<String, ComponentRefFields>> _refFields = {};
 
+  /// Each catalog's composition constraints, by catalog id, built on first
+  /// use.
+  final Map<String, Map<String, CompositionRule>> _compositionRules = {};
+
   /// The RPC layer: it answers the `callRendererFunction` messages this
   /// processor receives, settles its `agentFunctionResponse`s, and sends the
   /// `callAgentFunction`s made through [callAgentFunction] or by a surface's
@@ -745,13 +749,21 @@ class MessageProcessor<T extends ComponentApi> {
 
     final merged = <String, CompositionRule>{};
     for (final catalog in involved) {
-      extractCompositionRules(catalog).forEach(
+      _rulesOf(catalog).forEach(
         (String type, CompositionRule rule) =>
             merged.putIfAbsent(type, () => rule),
       );
     }
     return merged;
   }
+
+  Map<String, CompositionRule> _rulesOf(
+    Catalog<T, FunctionImplementation> catalog,
+  ) =>
+      _compositionRules.putIfAbsent(
+        catalog.id,
+        () => extractCompositionRules(catalog),
+      );
 
   SurfaceModel<T> _surfaceFor(String surfaceId) {
     final SurfaceModel<T>? surface = model.getSurface(surfaceId);
@@ -792,13 +804,13 @@ class MessageProcessor<T extends ComponentApi> {
         _resolveComponent(raw, surface, version),
     ];
 
+    final List<String?> catalogIds = [
+      ...model.catalogIds,
+      for (final Map<String, Object?> c in resolved) c['catalogId'] as String?,
+    ];
     final Map<String, ComponentRefFields> refFields = _refFieldsFor(
       surface,
-      [
-        for (final ComponentModel c in model.all) c.catalog,
-        for (final Map<String, Object?> c in resolved)
-          c['catalogId'] as String?,
-      ],
+      catalogIds,
     );
     final ValidationConfig? config = validationConfig;
     if (config == null) {
@@ -813,7 +825,16 @@ class MessageProcessor<T extends ComponentApi> {
     }
     // Composition constraints (`allowedParents` / `allowedChildren`) over the
     // surface this batch would leave behind. An edge whose child has not
-    // arrived yet is skipped, so this holds without a config too.
+    // arrived yet is skipped, so this holds without a config too. None of the
+    // catalogs the surface draws on may declare any, which is the common case
+    // and leaves nothing to check.
+    if (!{
+      if (surface.defaultCatalog case final catalog?) catalog.id,
+      for (final String? id in catalogIds)
+        if (id != null) id,
+    }.any((String id) => _rulesOf(surface.resolveCatalog(id)).isNotEmpty)) {
+      return (resolved: resolved, refFields: refFields);
+    }
     final List<Map<String, Object?>> existing = [
       for (final ComponentModel c in model.all)
         if (!resolved.any((Map<String, Object?> r) => r['id'] == c.id))
@@ -833,6 +854,11 @@ class MessageProcessor<T extends ComponentApi> {
 
   /// Applies a [batch] that [_checkComponents] accepted.
   void _applyComponents(SurfaceModel<T> surface, _CheckedBatch batch) {
+    _applyComponentModels(surface, batch);
+    surface.componentsModel.componentsUpdateApplied(batch.resolved);
+  }
+
+  void _applyComponentModels(SurfaceModel<T> surface, _CheckedBatch batch) {
     final SurfaceComponentsModel model = surface.componentsModel;
     model.refFields = batch.refFields;
     for (final Map<String, Object?> entry in batch.resolved) {

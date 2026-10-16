@@ -58,10 +58,11 @@
   `updateComponents` and `updateDataModel` once, after it closes.
 - The direct JSON parser's `parseChunk` reads and checks only what each
   chunk adds, rather than the whole block so far: a message once it closes,
-  and a growing `updateComponents` for its new components. Streaming a
-  6.4 KB payload in 16-byte chunks takes about 0.1 s rather than 1.4 s. A
-  message that grows is emitted again with the components it emitted
-  before, as the same objects.
+  and a growing `updateComponents` for its new components. The time to
+  stream a payload grows with its size rather than with its square:
+  streaming 6.4 KB in 16-byte chunks takes about 0.1 s rather than 1.4 s,
+  and 105 KB about 0.3 s. A message that grows is emitted again with the
+  components it emitted before, as the same objects.
 - The Express decompiler rejects a check condition with extra fields rather
   than dropping them.
 - The Express prompt gives each function's description.

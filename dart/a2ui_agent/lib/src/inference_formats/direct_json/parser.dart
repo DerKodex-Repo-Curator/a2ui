@@ -239,8 +239,10 @@ class DirectJsonParser extends Parser {
   /// Finds the close tag of the current block as its text arrives.
   _BlockScanner _scanner = _BlockScanner(0);
 
-  /// What the reads of the current block keep from one chunk to the next.
+  /// What the reads of the current block keep from one chunk to the next,
+  /// for reads of the payload starting at [_readStart].
   PartialReadCache _readCache = PartialReadCache();
+  int? _readStart;
 
   /// The checks of the current block's messages, kept from one chunk to the
   /// next, or null before the block holds part of a message.
@@ -284,7 +286,7 @@ class DirectJsonParser extends Parser {
     final parts = <ResponsePart>[];
     if (!wrapped) {
       _block += chunk;
-      _emitReady(parts, _block);
+      _emitReady(parts, _block, _block.length);
       return parts;
     }
     String input = _held + chunk;
@@ -296,7 +298,7 @@ class DirectJsonParser extends Parser {
         final _BlockScan scan = _scanner.scan(_block);
         final int? closeStart = scan.closeStart;
         if (closeStart == null) {
-          _emitReady(parts, _block.substring(0, scan.readableEnd));
+          _emitReady(parts, _block, scan.readableEnd);
           break;
         }
         input = _block.substring(
@@ -308,6 +310,7 @@ class DirectJsonParser extends Parser {
         _emitted.clear();
         _scanner = _BlockScanner(0);
         _readCache = PartialReadCache();
+        _readStart = null;
         _checks?.dispose();
         _checks = null;
         continue;
@@ -343,14 +346,27 @@ class DirectJsonParser extends Parser {
     _runStarted = true;
   }
 
-  /// Emits the messages of [block], the start of a block, that read and are
-  /// new or changed.
-  void _emitReady(List<ResponsePart> parts, String block) {
+  /// Emits the messages of [block], the start of a block, up to [end], that
+  /// read and are new or changed.
+  ///
+  /// A leading markdown fence is skipped once its line is complete, and a
+  /// trailing one, or the start of one, is left out.
+  void _emitReady(List<ResponsePart> parts, String block, int end) {
+    final int? start = _payloadStart(block, end);
+    if (start == null) return;
+    // The block only grows, so what earlier reads found holds while the
+    // payload starts at the same place.
+    if (start != _readStart) {
+      _readStart = start;
+      _readCache = PartialReadCache();
+    }
     final List<PartialMessage> envelopes = readPartialMessages(
-      _cleanStart(block),
+      block,
       progressiveKeys,
       wholeItemKeys: _buffersComponents ? const {'components'} : const {},
       cache: _readCache,
+      start: start,
+      end: _trailingFenceStart(block, start, end),
     );
     if (envelopes.isEmpty) return;
     // Built from the reader, so that catalogs it cannot read throw rather
@@ -433,6 +449,9 @@ class _StreamedChecks {
   /// until they close, or null.
   String? _growingLast;
 
+  /// The ids of the components of the `updateComponents` last checked.
+  Set<String> _growingIds = {};
+
   /// Whether a message that has closed failed the checks. It fails the same
   /// way on every later chunk, so nothing after it is emitted before
   /// compile.
@@ -476,6 +495,7 @@ class _StreamedChecks {
       _growing = null;
       _growingJson = null;
       _growingLast = null;
+      _growingIds = {};
     }
     return [..._closed, ?_growing];
   }
@@ -497,6 +517,7 @@ class _StreamedChecks {
     }
     final AgentToRendererMessage read = _reader.read(envelope, _surfaces);
     _checker.add(read);
+    if (read is UpdateComponentsMessage) _growingIds = _idsOf(read.components);
     return read;
   }
 
@@ -514,6 +535,8 @@ class _StreamedChecks {
     if (components.length < kept) kept = 0;
     if (kept > 0 && jsonEncode(components[kept - 1]) != _growingLast) kept--;
     if (kept == components.length) return growing;
+    // The component read again is checked again with the added ones.
+    _growingIds.removeAll(_idsOf(growing.components.skip(kept)));
     final added =
         _reader.read({
               ...envelope,
@@ -531,14 +554,21 @@ class _StreamedChecks {
     // The checker sees only the added components as a batch, so it would
     // take an id repeated from an earlier batch of this message for an
     // update.
-    checkDuplicateComponentIds(message.components);
+    checkDuplicateComponentIds(added.components, earlier: _growingIds);
     _checker.add(added);
+    _growingIds.addAll(_idsOf(added.components));
     return message;
   }
 
   /// Releases the surfaces the messages checked so far create.
   void dispose() => _checker.dispose();
 }
+
+/// The ids [components] give.
+Set<String> _idsOf(Iterable<Map<String, Object?>> components) => {
+  for (final Map<String, Object?> component in components)
+    if (component['id'] case final String id) id,
+};
 
 /// The body of [envelope] if it is an `updateComponents` with a list of
 /// components, or null.
@@ -609,48 +639,51 @@ String _clean(String text) => text
     .replaceFirst(_trailingFence, '')
     .trim();
 
-/// The start of a block, with a leading markdown fence removed once its line
-/// is complete, and a trailing one removed.
-String _cleanStart(String block) {
-  String text = block.trimLeft();
-  if (text.startsWith('`')) {
-    final int newline = text.indexOf('\n');
-    if (newline < 0) return '';
-    text = text.substring(newline + 1);
+bool _isSpace(String text, int i) => text[i].trim().isEmpty;
+
+/// Where the payload of the start of a block that ends at [end] in [text]
+/// starts: after leading whitespace, and after the line of a leading
+/// markdown fence, or null while that line is not complete.
+int? _payloadStart(String text, int end) {
+  var start = 0;
+  while (start < end && _isSpace(text, start)) {
+    start++;
   }
-  return text.substring(0, _trailingFenceStart(text));
+  if (start == end || text[start] != '`') return start;
+  final int newline = text.indexOf('\n', start);
+  return newline < 0 || newline >= end ? null : newline + 1;
 }
 
-/// Where the markdown fence that ends [text], or the start of one, begins,
-/// with the whitespace before it, or the length of [text] if none ends it.
+/// Where the markdown fence that ends the part of [text] from [start] to
+/// [end], or the start of one, begins, with the whitespace before it, or
+/// [end] if none ends it.
 ///
 /// Finds what `\s*`{1,3}[a-zA-Z-]*\s*$` matches by reading back from the
 /// end, since a regular expression would try every offset of a block that
 /// is read again on every chunk.
-int _trailingFenceStart(String text) {
-  bool isSpace(int i) => text[i].trim().isEmpty;
+int _trailingFenceStart(String text, int start, int end) {
   bool isLanguage(int i) {
     final int c = text.codeUnitAt(i);
     return c == 0x2d || (c >= 0x41 && c <= 0x5a) || (c >= 0x61 && c <= 0x7a);
   }
 
-  int start = text.length;
-  while (start > 0 && isSpace(start - 1)) {
-    start--;
+  var fence = end;
+  while (fence > start && _isSpace(text, fence - 1)) {
+    fence--;
   }
-  while (start > 0 && isLanguage(start - 1)) {
-    start--;
+  while (fence > start && isLanguage(fence - 1)) {
+    fence--;
   }
   var ticks = 0;
-  while (ticks < 3 && start > 0 && text[start - 1] == '`') {
-    start--;
+  while (ticks < 3 && fence > start && text[fence - 1] == '`') {
+    fence--;
     ticks++;
   }
-  if (ticks == 0) return text.length;
-  while (start > 0 && isSpace(start - 1)) {
-    start--;
+  if (ticks == 0) return end;
+  while (fence > start && _isSpace(text, fence - 1)) {
+    fence--;
   }
-  return start;
+  return fence;
 }
 
 /// Where a block ends, as [_scanBlock] finds it.

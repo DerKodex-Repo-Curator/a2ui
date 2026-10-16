@@ -102,13 +102,26 @@ void main() {
       }
     });
 
-    test('reads a text that does not extend the last one afresh', () {
+    test('reads only the part between start and end', () {
+      const payload = '[{"a": [1, 2]}, {"b": "x"}]';
       final cache = PartialReadCache();
-      read('[{"a": [1, 2]}, {"b": 1}]', cache: cache);
-      expect(
-        read('[{"b": [3]}, {"a": 1}]', cache: cache),
-        read('[{"b": [3]}, {"a": 1}]'),
-      );
+      for (var end = 3; end <= payload.length; end++) {
+        final text = '```json\n$payload\n```';
+        expect(
+          jsonEncode([
+            for (final (:Object? message, :bool closed) in readPartialMessages(
+              text,
+              const {},
+              cache: cache,
+              start: 8,
+              end: 8 + end,
+            ))
+              [message, closed],
+          ]),
+          read(payload.substring(0, end)),
+          reason: payload.substring(0, end),
+        );
+      }
     });
 
     test('returns a list or map that closed as the same object', () {
