@@ -16,12 +16,14 @@
 
 from .catalog_resolver import resolve_catalogs
 from .examples import load_examples, resolve_examples_path
+from .renderer_state import RendererState
 from .schema_pruning import prune_common_types_schema, prune_messages_schema
 from .schemas import load_agent_to_renderer_schema, load_common_types_schema
 from .validation import validate_payload
 from .versions import to_version_number
 
 __all__ = [
+    "RendererState",
     "load_agent_to_renderer_schema",
     "load_common_types_schema",
     "load_examples",

@@ -26,7 +26,7 @@ from a2ui.core import (
     CatalogApi,
 )
 from a2ui.core.basic_catalog import BasicCatalog
-from a2ui.utils import validate_payload
+from a2ui.utils import RendererState, validate_payload
 
 _BASIC = BasicCatalog("0.9")
 _COLUMN = {"id": "root", "component": "Column", "children": ["t"]}
@@ -451,6 +451,22 @@ def test_full_v0_8_flow_on_the_basic_catalog_is_accepted():
     ]
 
     validate_payload([BasicCatalog("0.8")], payload)
+
+
+def test_updated_surface_is_checked_against_the_catalog_it_was_created_with():
+    """Checked on its own, an update passes on any catalog that accepts it.
+
+    A `RendererState` that saw the surface created checks it against that
+    catalog only.
+    """
+    catalogs = [_catalog("a", "Text"), _catalog("b", "Text", "Card")]
+    update = _update({"id": "c", "component": "Card", "text": "Hi"})
+
+    validate_payload(catalogs, [update])
+    state = RendererState(catalogs)
+    state.apply(_create("a"))
+    with pytest.raises(A2uiValidationError, match="Unrecognized component type 'Card'"):
+        state.apply(update)
 
 
 def test_updated_surface_with_a_known_catalog_is_checked_against_it_only():
