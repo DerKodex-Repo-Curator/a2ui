@@ -29,7 +29,7 @@
 
   <p class="status" data-testid="status">
     @if (client.isLoading()) {
-      Waiting for the agent...
+      Waiting for the agent... A2UI messages in {{ client.uiEvents() }} event(s) so far.
     } @else if (client.streamed() !== null) {
       {{ client.streamed() ? 'Streamed' : 'Non-streamed' }} response, A2UI messages in
       {{ client.uiEvents() }} event(s).
@@ -43,12 +43,10 @@
   }
 
   <div class="surfaces">
-    @for (entry of renderer.surfaceGroup.surfacesMap; track entry[0]) {
-      <section class="surface" [attr.data-surface-id]="entry[0]">
-        <div class="surface-label">
-          {{ entry[0] }} · {{ catalogName(entry[1].defaultCatalog?.id) }}
-        </div>
-        <a2ui-v09-surface [surfaceId]="entry[0]" />
+    @for (surface of client.surfaces(); track surface.id) {
+      <section class="surface" [attr.data-surface-id]="surface.id">
+        <div class="surface-label">{{ surface.id }} · {{ catalogName(surface.catalogId) }}</div>
+        <a2ui-v09-surface [surfaceId]="surface.id" />
       </section>
     }
   </div>

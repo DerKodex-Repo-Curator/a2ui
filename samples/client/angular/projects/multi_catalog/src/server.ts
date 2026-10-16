@@ -104,6 +104,7 @@ async function handleStreamingResponse(
   res.status(200);
 
   let events = 0;
+  const start = Date.now();
   for await (const event of a2aClient.sendMessageStream(sendParams)) {
     if (event.kind !== 'task' && event.kind !== 'status-update') {
       continue;
@@ -111,11 +112,35 @@ async function handleStreamingResponse(
     const parts = event.status.message?.parts ?? [];
     if (parts.length > 0) {
       events++;
+      console.log(`[server] +${Date.now() - start}ms event ${events}: ${describeParts(parts)}`);
       res.write(`data: ${JSON.stringify({parts, contextId: event.contextId})}\n\n`);
     }
   }
   res.end();
   console.log(`[server] Streamed ${events} events`);
+}
+
+/** Summarizes the parts of an agent update for the log, one entry per part. */
+function describeParts(parts: Part[]): string {
+  return parts
+    .map(part => {
+      if (part.kind === 'text') {
+        return `text(${JSON.stringify(part.text.slice(0, 40))})`;
+      }
+      if (part.kind !== 'data') {
+        return part.kind;
+      }
+      const messages = Array.isArray(part.data) ? part.data : [part.data];
+      return messages
+        .map(message => {
+          const type = Object.keys(message).find(key => key !== 'version') ?? '?';
+          const body = message[type] as {surfaceId?: string; components?: {id: string}[]};
+          const ids = body.components ? ` [${body.components.map(c => c.id).join(',')}]` : '';
+          return `${type}(${body.surfaceId})${ids}`;
+        })
+        .join(', ');
+    })
+    .join('; ');
 }
 
 async function handleNonStreamingResponse(

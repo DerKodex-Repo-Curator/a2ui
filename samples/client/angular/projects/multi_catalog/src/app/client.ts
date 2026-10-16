@@ -30,6 +30,8 @@ interface Part {
 export class Client {
   private readonly renderer = inject(A2uiRendererService);
   private contextId?: string;
+  /** When the current request started, for the console log of each message. */
+  private requestStart = 0;
 
   readonly isLoading = signal(false);
   /** Whether the last response was read as a stream. */
@@ -39,6 +41,25 @@ export class Client {
   /** The text the agent sent in the last response, if any. */
   readonly agentText = signal('');
   readonly error = signal('');
+  /**
+   * The surfaces the renderer holds. The surface group's map is not a signal,
+   * so the app reads this one to render a surface as soon as it is created,
+   * while the rest of the response is still streaming.
+   */
+  readonly surfaces = signal<{id: string; catalogId?: string}[]>([]);
+
+  constructor() {
+    const surfaceGroup = this.renderer.surfaceGroup;
+    surfaceGroup.onSurfaceCreated.subscribe(surface => {
+      this.surfaces.update(list => [
+        ...list,
+        {id: surface.id, catalogId: surface.defaultCatalog?.id},
+      ]);
+    });
+    surfaceGroup.onSurfaceDeleted.subscribe(id => {
+      this.surfaces.update(list => list.filter(surface => surface.id !== id));
+    });
+  }
 
   async sendQuery(query: string) {
     await this.request({query});
@@ -49,6 +70,7 @@ export class Client {
   }
 
   private async request(body: {query?: string; event?: unknown}) {
+    this.requestStart = performance.now();
     this.isLoading.set(true);
     this.uiEvents.set(0);
     this.agentText.set('');
@@ -123,6 +145,9 @@ export class Client {
     }
     if (messages.length > 0) {
       this.uiEvents.update(count => count + 1);
+      for (const message of messages) {
+        console.log(`[a2ui] ${(performance.now() - this.requestStart).toFixed(0)}ms`, message);
+      }
       this.renderer.processMessages(messages);
     }
   }

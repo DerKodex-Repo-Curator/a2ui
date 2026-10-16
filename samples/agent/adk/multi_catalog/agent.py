@@ -17,7 +17,14 @@ import logging
 import os
 from typing import Any
 
-from a2a.types import AgentCapabilities, AgentCard, AgentSkill, Part, TextPart
+from a2a.types import (
+    AgentCapabilities,
+    AgentCard,
+    AgentSkill,
+    DataPart,
+    Part,
+    TextPart,
+)
 from google.adk.agents import run_config
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.artifacts import InMemoryArtifactService
@@ -41,6 +48,25 @@ MAX_ATTEMPTS = 2
 
 def _text_parts(text: str) -> list[Part]:
     return [Part(root=TextPart(text=text))]
+
+
+def _describe(part: Part) -> str:
+    """Summarizes a part for the log: its text, or its A2UI message types."""
+    if isinstance(part.root, TextPart):
+        return f"text({part.root.text[:40]!r})"
+    if not isinstance(part.root, DataPart):
+        return type(part.root).__name__
+    data = part.root.data
+    messages = data if isinstance(data, list) else [data]
+    summaries = []
+    for message in messages:
+        kind = next((k for k in message if k != "version"), "?")
+        body = message.get(kind) or {}
+        ids = [c.get("id") for c in body.get("components", [])]
+        summaries.append(
+            f"{kind}({body.get('surfaceId')})" + (f" {ids}" if ids else "")
+        )
+    return ", ".join(summaries)
 
 
 class SalesDashboardAgent:
@@ -237,6 +263,7 @@ class SalesDashboardAgent:
                         processor.open_stream(), token_stream(), version=VERSION
                     ):
                         sent += 1
+                        logger.info(f"--- Streamed part {sent}: {_describe(part)} ---")
                         yield {"is_task_complete": False, "parts": [part]}
                     final_parts: list[Part] = []
                 else:

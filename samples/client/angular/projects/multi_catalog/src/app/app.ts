@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {A2uiRendererService, SurfaceComponent} from '@a2ui/angular/v0_9';
+import {SurfaceComponent} from '@a2ui/angular/v0_9';
 import {ChangeDetectionStrategy, Component, inject} from '@angular/core';
 
 import {Client} from './client';
@@ -28,7 +28,6 @@ import {Client} from './client';
 })
 export class App {
   protected readonly client = inject(Client);
-  protected readonly renderer = inject(A2uiRendererService);
 
   protected async handleSubmit(event: SubmitEvent) {
     event.preventDefault();
