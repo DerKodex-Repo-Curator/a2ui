@@ -633,7 +633,8 @@ class _Component {
     return '{${entries.join(', ')}}';
   }
 
-  /// The checks of the component, as `?name(arguments, message)` in a list.
+  /// The checks of the component, as `?name(arguments, message)`: one on its
+  /// own, and several in a list.
   String _checks(Object checks) {
     if (checks is! List || checks.isEmpty) {
       throw A2uiValidationError(
@@ -641,6 +642,7 @@ class _Component {
         'writes checks as a non-empty list.',
       );
     }
+    if (checks.length == 1) return _check(checks.single);
     return '[${checks.map(_check).join(', ')}]';
   }
 
@@ -760,6 +762,14 @@ String _double(double value) {
 String _string(String value) {
   final bool hasBackslash = value.contains(r'\');
   if (hasBackslash && !value.contains(RegExp('["\n\r]'))) return 'r"$value"';
+  // Across lines a raw string is triple-quoted, and ends at the first `"""`.
+  if (hasBackslash &&
+      value.contains('\n') &&
+      !value.contains('\r') &&
+      !value.contains('"""') &&
+      !value.endsWith('"')) {
+    return 'r"""$value"""';
+  }
   final String escaped = value
       .replaceAll(r'\', r'\\')
       .replaceAll('"', r'\"')

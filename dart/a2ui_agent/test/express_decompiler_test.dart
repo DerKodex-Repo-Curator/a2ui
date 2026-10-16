@@ -116,7 +116,7 @@ void main() {
                     'value': {'path': '/zip'},
                   },
                 },
-                'message': 'Required check failed.',
+                'message': 'Required check failed',
               },
               {
                 'condition': {
@@ -152,7 +152,7 @@ void main() {
                     'value': {'path': '/password'},
                   },
                 },
-                'message': 'Required check failed.',
+                'message': 'Required check failed',
               },
             ],
           },
@@ -178,7 +178,7 @@ void main() {
           },
         ]),
       ]);
-      expect(written, contains('[?isOnline("Offline")]'));
+      expect(written, contains('?isOnline("Offline")'));
     });
 
     test('a call stating its return type as the map it compiles from', () {

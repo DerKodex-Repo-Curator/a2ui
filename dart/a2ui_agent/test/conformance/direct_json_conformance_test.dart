@@ -79,22 +79,10 @@ const Map<String, String> _v1StreamingRules = {
 /// Streaming cases this SDK does not pass yet, each with the behavior it
 /// lacks.
 const Map<String, String> _knownStreamingGaps = {
-  'test_stream_orphan_component_fails_v09': _treeChecked,
-  'test_stream_circular_reference_fails_v09': _treeChecked,
-  'test_stream_self_reference_fails_v09': _treeChecked,
-  'test_stream_update_before_create_surface_fails_v09': _surfaceFirst,
-  'test_stream_data_model_before_create_surface_fails_v09': _surfaceFirst,
   'test_stream_cut_surrogate_pair_v09':
       'Known gap: a string cut inside an escaped surrogate pair is healed '
       'with U+FFFD rather than cut before the pair.',
 };
-
-const String _treeChecked =
-    'Known gap: a streamed tree is not checked for orphans and cycles when '
-    'the block closes.';
-const String _surfaceFirst =
-    'Known gap: a message for a surface the block has not created yet is '
-    'not rejected when the block closes.';
 
 /// Whether the catalogs of [testCase] target v1.0, as most cases' do.
 bool _targetsV1(Map<String, Object?> testCase) =>

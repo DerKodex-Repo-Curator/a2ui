@@ -54,46 +54,7 @@ void main() {
 }
 
 /// Cases this SDK does not pass yet, with the reason for each.
-const Map<String, String> _knownGaps = {
-  'test_compile_express_checks_on_uncheckable_component_is_a_validation_error':
-      'Does not reject check lists on components without checks '
-      '(https://github.com/a2ui-project/a2ui/issues/3100).',
-  'test_compile_express_inline_array_id_collision_is_a_validation_error':
-      'Does not reject inline array child IDs colliding with variables '
-      '(https://github.com/a2ui-project/a2ui/issues/3100).',
-  'test_compile_express_inline_id_collision_is_a_validation_error':
-      'Does not reject inline child IDs colliding with variables '
-      '(https://github.com/a2ui-project/a2ui/issues/3100).',
-  'test_decompile_express_check_with_arg_omits_default_message':
-      'Wraps single check rules in brackets [?check] instead of bare ?check '
-      '(https://github.com/a2ui-project/a2ui/issues/3100).',
-  'test_decompile_express_check_with_custom_message':
-      'Wraps single check rules in brackets [?check] instead of bare ?check '
-      '(https://github.com/a2ui-project/a2ui/issues/3100).',
-  'test_decompile_express_check_with_default_message_omits_parens':
-      'Wraps single check rules in brackets [?check] instead of bare ?check '
-      '(https://github.com/a2ui-project/a2ui/issues/3100).',
-  'test_decompile_express_check_without_bound_component_value_'
-          'writes_explicit_path':
-      'Wraps single check rules in brackets [?check] instead of bare ?check '
-      '(https://github.com/a2ui-project/a2ui/issues/3100).',
-  'test_decompile_express_event_action_with_nested_context':
-      'Does not recursively format nested maps in Event context '
-      '(https://github.com/a2ui-project/a2ui/issues/3100).',
-  'test_decompile_express_raw_triple_quoted_multiline_string':
-      'Does not emit raw triple-quoted strings for multiline backslash strings '
-      '(https://github.com/a2ui-project/a2ui/issues/3100).',
-  'test_decompile_express_several_checks_in_one_list':
-      'Default check message in Dart ends with a period ("Required check '
-      'failed."), so "Required check failed" is written as a custom message '
-      '(https://github.com/a2ui-project/a2ui/issues/3100).',
-  'test_decompile_express_update_data_model_map_at_path':
-      'Does not decompile updateDataModel with a non-root path '
-      '(https://github.com/a2ui-project/a2ui/issues/3100).',
-  'test_decompile_express_update_data_model_scalar_at_path':
-      'Does not decompile updateDataModel with a non-root path '
-      '(https://github.com/a2ui-project/a2ui/issues/3100).',
-};
+const Map<String, String> _knownGaps = {};
 
 /// Cases that state what v0.9 cannot, so they run as written in v1.0 only.
 const Set<String> _v1OnlyCases = {

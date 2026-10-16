@@ -23,9 +23,9 @@ import 'schema_helper.dart';
 const String defaultSurfaceId = 'default_surface';
 
 /// The message a check written without one carries, such as `Required check
-/// failed.` for `?required`.
+/// failed` for `?required`.
 String defaultCheckMessage(String check) =>
-    '${check.substring(0, 1).toUpperCase()}${check.substring(1)} check failed.';
+    '${check.substring(0, 1).toUpperCase()}${check.substring(1)} check failed';
 
 /// The helpers that belong to no catalog.
 const Set<String> _reservedHelpers = {'Event', '_template'};
@@ -330,7 +330,7 @@ class _SurfaceCompiler {
   final ExpressCompiler compiler;
   final _Surface surface;
 
-  /// Component ids taken so far, so that an inline component gets a new one.
+  /// Component ids taken so far, which an inline component's may not repeat.
   final Set<String> _usedIds = {};
 
   /// Variables being substituted, to catch one that refers to itself.
@@ -957,12 +957,19 @@ class _SurfaceCompiler {
     };
   }
 
-  String _newId(String prefix) {
-    var id = prefix;
-    for (var n = 2; _usedIds.contains(id); n++) {
-      id = '${prefix}_$n';
+  /// [id], the id an inline component takes from where it is written, such
+  /// as `root_child` for the child of `root`.
+  ///
+  /// Throws [A2uiValidationError] if a variable or another inline component
+  /// has it already, rather than overwriting one of the two.
+  String _newId(String id) {
+    if (!_usedIds.add(id)) {
+      throw A2uiValidationError(
+        "An inline component takes the id '$id', which another component "
+        'has already. Rename the variable, or assign the inline component to '
+        'a variable of its own.',
+      );
     }
-    _usedIds.add(id);
     return id;
   }
 

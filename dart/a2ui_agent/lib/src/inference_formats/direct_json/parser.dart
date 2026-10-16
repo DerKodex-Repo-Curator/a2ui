@@ -19,6 +19,7 @@ import 'package:a2ui_core/a2ui_core.dart';
 import '../../parser/parser.dart';
 import '../../parser/response_part.dart';
 import '../../utils/message_reader.dart';
+import '../../utils/payload_checker.dart';
 import 'json_reader.dart';
 
 // The open tag may carry attributes, such as `<a2ui-json version="v0.9">`.
@@ -195,10 +196,23 @@ class DirectJsonParser extends Parser {
     // Read before the loop, so that an empty list checks the catalogs too.
     final MessageReader reader = _reader;
     final surfaces = <String, String?>{};
-    return [
+    final List<AgentToRendererMessage> messages = [
       for (final Object? envelope in decoded is List ? decoded : [decoded])
         reader.read(envelope, surfaces),
     ];
+    final checker = PayloadChecker(
+      reader.catalogs,
+      reader.version,
+      created: PayloadChecker.createdBy(messages),
+    );
+    try {
+      messages.forEach(checker.add);
+    } on Object {
+      checker.dispose();
+      rethrow;
+    }
+    checker.finish();
+    return messages;
   }
 
   /// Writes [a2uiPayload] as a JSON list, one message per line.
@@ -330,16 +344,25 @@ class DirectJsonParser extends Parser {
     final bool v1 = reader.version.isAtLeast(A2uiProtocolVersion.v1_0);
     final surfaces = <String, String?>{};
     final ready = <AgentToRendererMessage>[];
-    for (final (:Object? message, :bool closed) in envelopes) {
-      // Held until it closes, and nothing after it is emitted ahead of it.
-      if (!closed && !_growsInPlace(message)) break;
-      try {
-        ready.add(reader.read(message, surfaces));
-      } on A2uiError {
-        if (v1 && _hasClosedComponents(message)) rethrow;
-        // Not ready, and nothing after it is emitted ahead of it.
-        break;
+    // The block is not whole yet, so a message for a surface it creates later
+    // waits for compile, and so do the checks of a whole surface.
+    final checker = PayloadChecker(reader.catalogs, reader.version);
+    try {
+      for (final (:Object? message, :bool closed) in envelopes) {
+        // Held until it closes, and nothing after it is emitted ahead of it.
+        if (!closed && !_growsInPlace(message)) break;
+        try {
+          final AgentToRendererMessage read = reader.read(message, surfaces);
+          checker.add(read);
+          ready.add(read);
+        } on A2uiError {
+          if (v1 && _hasClosedComponents(message)) rethrow;
+          // Not ready, and nothing after it is emitted ahead of it.
+          break;
+        }
       }
+    } finally {
+      checker.dispose();
     }
     _emitChanged(parts, ready);
   }
