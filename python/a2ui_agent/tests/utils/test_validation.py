@@ -499,6 +499,15 @@ def test_created_surface_ignores_its_known_catalog():
     )
 
 
+def test_a_payload_may_be_any_iterable_of_messages():
+    messages = [
+        _create("a"),
+        _update({"id": "root", "component": "Text", "text": "Hi"}),
+    ]
+
+    validate_payload([_catalog("a", "Text")], (m for m in messages))
+
+
 def test_typed_schema_models_are_accepted():
     from a2ui.core.schema import v0_8, v0_9
 

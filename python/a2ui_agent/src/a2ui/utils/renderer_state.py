@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""The agent's mirror of the surfaces that a renderer holds."""
+"""The agent's mirror of a renderer's surfaces, and the payload check on it."""
 
 from __future__ import annotations
 
@@ -49,6 +49,7 @@ from a2ui.core.validation import analyze_topology, validate_component_integrity
 
 __all__ = [
     "RendererState",
+    "validate_payload",
 ]
 
 # The `version` values that messages for each protocol version's catalogs
@@ -200,7 +201,7 @@ class RendererState:
         self,
         payload: (
             AgentToRendererMessagePayload
-            | Sequence[AgentToRendererMessage | Mapping[str, Any]]
+            | Iterable[AgentToRendererMessage | Mapping[str, Any]]
         ),
     ) -> list[str]:
         """Checks the messages against the state and applies them.
@@ -216,7 +217,7 @@ class RendererState:
         The call is atomic: if a message is rejected, none of them is applied.
 
         Args:
-          payload: One message or a sequence of messages, as parsed JSON
+          payload: One message or an iterable of messages, as parsed JSON
             mappings or typed schema models, which may be mixed.
 
         Returns:
@@ -457,6 +458,93 @@ class RendererState:
         }
 
 
+class _PayloadState(RendererState):
+    """The state of a renderer that `validate_payload` knows nothing about.
+
+    A surface the payload updates without creating is assumed to exist,
+    holding components the check never saw. The state creates an empty
+    placeholder for it, on the first catalog that defines the update's
+    components and accepts it. Each component is still checked against that
+    catalog, but the surface's tree is not: references to components outside
+    the payload, a missing root and unreachable components are accepted there.
+    A surface whose catalog the caller knows is created on that catalog only.
+    """
+
+    _assumes_unknown_surfaces = True
+
+    def __init__(
+        self,
+        catalogs: Sequence[CatalogApi],
+        surface_catalog_ids: Mapping[str, str] | None = None,
+    ) -> None:
+        super().__init__(catalogs)
+        self._surface_catalog_ids = dict(surface_catalog_ids or {})
+
+    def _placeholder_catalogs(
+        self, surface_id: str, payload: list[dict[str, Any]]
+    ) -> list[CatalogApi]:
+        catalog_id = self._surface_catalog_ids.get(surface_id)
+        if catalog_id is None:
+            return super()._placeholder_catalogs(surface_id, payload)
+        candidates = [c for c in self.catalogs if c.catalog_id == catalog_id]
+        if not candidates:
+            raise A2uiValidationError(
+                f"Surface '{surface_id}' uses catalog '{catalog_id}', which"
+                " isn't one of the active catalogs."
+            )
+        return candidates
+
+
+def validate_payload(
+    catalogs: Sequence[CatalogApi],
+    payload: AgentToRendererMessagePayload,
+    *,
+    surface_catalog_ids: Mapping[str, str] | None = None,
+) -> None:
+    """Checks a payload the way a renderer holding the catalogs would.
+
+    The check is stateless: it sees one payload, with no record of what earlier
+    payloads sent. A surface that the payload creates, with
+    `createSurface` or the v0.8 `beginRendering`, is checked in full, so its
+    components must be valid and reachable from the root, and their references
+    must resolve once every message in the payload is applied: a component may
+    name a child that a later message adds. A surface that the payload only
+    updates may already hold components, so references to components outside
+    the payload and a missing root are accepted there. Each of its components
+    is still checked against a catalog that defines all of them, and the
+    surface passes if one such catalog accepts it. A caller that knows the
+    catalog an earlier payload created the surface with passes it in
+    `surface_catalog_ids`, and the surface is then checked against that
+    catalog only.
+
+    To check a payload against what earlier payloads sent, keep a
+    `RendererState` and call its `apply` and `check_topology` instead.
+
+    Each message must state a `version` that the catalogs' protocol version
+    accepts, spelled as the specification spells it: none for v0.8, `v0.9` or
+    `v0.9.1` for v0.9 and v0.9.1, and `v1.0` for v1.0.
+
+    Args:
+      catalogs: The active catalogs, which must target compatible protocol
+        versions. Each surface is checked against the catalog its `catalogId`
+        names. A v0.8 surface that names none uses the first catalog.
+      payload: One message or an iterable of messages, as parsed JSON mappings
+        or typed schema models.
+      surface_catalog_ids: The catalog ids that earlier payloads created
+        surfaces with, keyed by surface id. A surface that the payload creates
+        uses the catalog that the payload names instead.
+
+    Raises:
+      A2uiValidationError: If a renderer holding the catalogs would reject the
+        payload. The error, or a subclass such as `A2uiIntegrityError`,
+        describes the first problem found.
+      A2uiCatalogError: If no catalogs are given, or if their messages state
+        different versions, for example v0.9 and v1.0 catalogs.
+    """
+    state = _PayloadState(catalogs, surface_catalog_ids)
+    state.check_topology(state.apply(payload))
+
+
 @contextlib.contextmanager
 def _as_validation_error() -> Iterator[None]:
     """Raises the core's errors as validation errors.
@@ -473,7 +561,11 @@ def _as_validation_error() -> Iterator[None]:
 
 
 def _clone_surface(surface: SurfaceModel) -> SurfaceModel:
-    """Copies a surface's state into a new surface that shares its catalogs."""
+    """Copies a surface's state into a new surface that shares its catalogs.
+
+    `ComponentModel` deep-copies the properties it is given, so the clone's
+    components share no mutable state with the surface's.
+    """
     clone = SurfaceModel(
         surface_id=surface.id,
         default_catalog=surface.default_catalog,
@@ -496,7 +588,7 @@ def _clone_surface(surface: SurfaceModel) -> SurfaceModel:
 def _extract_messages(
     payload: (
         AgentToRendererMessagePayload
-        | Sequence[AgentToRendererMessage | Mapping[str, Any]]
+        | Iterable[AgentToRendererMessage | Mapping[str, Any]]
     ),
 ) -> list[dict[str, Any]]:
     """Normalizes a payload into a list of message dictionaries.
@@ -513,10 +605,11 @@ def _extract_messages(
     raw: Any = payload
     if hasattr(raw, "model_dump") and isinstance(getattr(raw, "messages", None), list):
         raw = raw.messages
-    raw_messages = (
-        raw
-        if isinstance(raw, Sequence) and not isinstance(raw, (str, bytes))
-        else [raw]
+    raw_messages: Iterable[Any] = (
+        [raw]
+        if isinstance(raw, (BaseModel, Mapping, str, bytes))
+        or not isinstance(raw, Iterable)
+        else raw
     )
     messages: list[dict[str, Any]] = []
     for index, item in enumerate(raw_messages):
