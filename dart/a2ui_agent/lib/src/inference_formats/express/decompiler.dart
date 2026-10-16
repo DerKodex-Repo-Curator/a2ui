@@ -276,7 +276,7 @@ class ExpressDecompiler {
           (known: false, catalogId: null),
           const {},
           const {},
-        )._call(message.callFunction) ??
+        )._call({'args': const <String, Object?>{}, ...message.callFunction}) ??
         (throw _noNotation("Function call '$id'"));
     if (id == 'call_$index') return call;
     final separator = call.endsWith('()') ? '' : ', ';
@@ -354,8 +354,12 @@ class ExpressDecompiler {
         "Catalog '$catalogId' declares no $kind named '$name'.",
       );
     }
+    // The compiler reads a call to a name some catalog declares as a
+    // component as that component, unless the call names its catalog.
     final bool found =
-        declaring.length == 1 && identical(declaring.single, helper);
+        declaring.length == 1 &&
+        identical(declaring.single, helper) &&
+        (component || !_helpers.values.any((h) => h.isComponent(name)));
     return (helper, !_v1 || catalogs.length == 1 || found ? null : catalogId);
   }
 
@@ -561,8 +565,12 @@ class _Component {
   };
 
   /// The function a call that names [name] and, from v1.0, [catalogId]
-  /// belongs to, and the catalog to write it with, or null if it belongs to
-  /// no active catalog.
+  /// belongs to, and the catalog to write it with, or, before v1.0, null if
+  /// it belongs to no active catalog.
+  ///
+  /// Throws [A2uiValidationError] from v1.0 if it belongs to no active
+  /// catalog, since the map the call would be written as instead does not
+  /// compile.
   (CatalogSchemaHelper, String?)? _function(String name, Object? catalogId) {
     try {
       return decompiler._resolve(
@@ -573,6 +581,7 @@ class _Component {
         subject: "Function call '$name'",
       );
     } on A2uiValidationError {
+      if (_v1) rethrow;
       return null;
     }
   }

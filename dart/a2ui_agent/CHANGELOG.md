@@ -30,35 +30,16 @@
     registered catalogs of different versions, since nothing says which one
     the renderer reads. Given capabilities, it throws it when no catalog is
     registered.
-  - Both formats compile and decompile v1.0 messages: a `createSurface`
-    carries the surface's components and initial data model, a data binding
-    or function call is written with `@path` or `@call`, and a component or
-    function call may name its own catalog. With several catalogs a surface
-    names none, and each component and call names its own.
-  - Direct JSON checks each component and function call against the catalog
-    it names, else its surface's, as a renderer resolves it. For a surface the
-    payload does not create, one that names none is checked against the
-    first catalog declaring it.
-  - Express compiles a function call written as a statement of its own into
-    a `callRendererFunction`, with the id `call_<n>` or the one its
-    `functionCallId` argument gives. A component or function call names its
-    catalog with a `catalogId` argument, and a check with a
-    `{catalogId: ...}` argument, which a name several catalogs declare
-    needs. A `surface(...)` line may not name a catalog when several are
-    active.
-  - The Express prompt tells the model how to name a catalog when several
-    are active, and which names need one. When `callRendererFunction` is
-    allowed, it names the functions the agent may call on their own. It
-    carries each catalog's `instructions`, with the JSON examples in them
-    written in Express.
-  - `A2uiRequestProcessor` checks v1.0 examples and responses through
-    `MessageProcessor.forAgent`, so a `callRendererFunction` may call only a
-    function whose `allowedCallers` lets the agent call it.
-  - The direct JSON parser holds a streamed v1.0 component back until its
-    object closes, whatever `bufferIncompleteComponents` says, which now
-    applies to catalogs before v1.0. An `updateComponents` whose closed
-    components do not read raises on the chunk that closes them, rather than
-    when the block closes.
+  - Both formats compile and decompile v1.0 messages, in which a component
+    or function call may name its own catalog.
+  - In Express, a `catalogId` argument names a catalog, and a function call
+    written as a statement of its own compiles to `callRendererFunction`.
+  - The Express prompt explains how to name a catalog, lists the functions
+    the agent may call, and carries each catalog's `instructions`.
+  - A `callRendererFunction` may call only a function whose `allowedCallers`
+    lets the agent call it.
+  - The direct JSON parser holds a streamed v1.0 component back until it
+    closes; `bufferIncompleteComponents` applies only before v1.0.
 - Exported `ExpressFormat`, `ExpressPromptGenerator`, `ExpressParser`,
   `ExpressCompiler` and `ExpressDecompiler`, which the agent SDK blueprint
   lists, as the direct JSON classes are. `ExpressFormat` has a public
@@ -71,17 +52,11 @@
   Catalogs of v0.9 and v0.9.1, which share message shapes, mix as v0.9, there
   and in `resolveCatalogs`.
 - Payload checks run through `a2ui_core`'s `MessageProcessor.forAgent`.
-  They throw `A2uiValidationError` for a component or function call naming a
-  catalog that is not active, as for a surface.
 - The direct JSON parser emits a streamed message other than
-  `updateComponents` and `updateDataModel`, such as a `createSurface`, once,
-  after its object closes, and holds the messages after it until then, in
-  every version. It was emitted while it grew.
-- The Express decompiler throws `A2uiValidationError` for a check whose
-  condition carries fields other than the function and its arguments, rather
-  than leaving them out.
-- The Express prompt gives each function's description, as it does each
-  component's.
+  `updateComponents` and `updateDataModel` once, after it closes.
+- The Express decompiler rejects a check condition with extra fields rather
+  than dropping them.
+- The Express prompt gives each function's description.
 - Bump `a2ui_core` dependency to `^0.3.0`.
 - The Direct JSON prompt lists `description` after `type` in the
   agent-to-renderer and `common_types` schemas it embeds, following the
@@ -133,6 +108,19 @@
   `https://` where the Apache text has `http://`, which pana does not match,
   and carried the root's notice for `eval/bin/transcrypt`, a file outside
   this package. Also a longer `description`.
+- The Express lexer and parser are generated from `Express.g4` with ANTLR
+  instead of written by hand, so the package depends on `antlr4`. Where the
+  handwritten parser differed from the grammar, Express now follows the
+  grammar: a comment ends at a lone `\r`, `r"""` without a closing `"""` is
+  read as `r""` followed by a string, and `r"` followed by a line break is
+  read as the name `r` followed by a string. Syntax errors carry ANTLR's
+  messages, and their columns count Unicode code points.
+- `ExpressParser.unwrap` and `hasFormatContent` read strings and comments as
+  `Express.g4` does when finding the `</a2ui>` that ends a block, so a close
+  tag after one of the constructs above ends the block instead of being read
+  as part of a string or comment.
+- An Express integer too large for `int` compiles to a double instead of
+  throwing `FormatException`.
 
 ## 0.0.1-wip005
 

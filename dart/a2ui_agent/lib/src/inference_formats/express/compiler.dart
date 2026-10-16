@@ -16,8 +16,8 @@ import 'package:a2ui_core/a2ui_core.dart';
 
 import '../../utils/catalogs.dart';
 import '../../utils/message_reader.dart';
+import 'ast.dart';
 import 'schema_helper.dart';
-import 'syntax.dart';
 
 /// The surface a block writes to when it names none with `surface(...)`.
 const String defaultSurfaceId = 'default_surface';
@@ -49,7 +49,8 @@ const Set<String> _reservedHelpers = {'Event', '_template'};
 /// its catalog with a `catalogId` keyword argument, and a check with a
 /// `{catalogId: ...}` argument; one that names none belongs to the one
 /// catalog declaring its name. With a single catalog the `createSurface`
-/// names that catalog and nothing else names one. With several, as
+/// names that catalog, and a component or call names it only when written
+/// with a `catalogId` argument. With several, as
 /// `conformance/agent/multi_catalog_formats.yaml` describes, a surface names
 /// no catalog, its `surface(...)` line may not name one, and every component
 /// and function call carries the id of its catalog.
@@ -99,17 +100,28 @@ class ExpressCompiler {
     }
     final envelopes = <Map<String, Object?>>[];
     var calls = 0;
+    final callIds = <String>{};
     for (final Object operation in _operations(statements)) {
       switch (operation) {
         case _Surface():
           envelopes.addAll(_SurfaceCompiler(this, operation).compile());
         case _StandaloneCall(:final CallNode call, :final _Surface? surface):
-          envelopes.add(
-            _SurfaceCompiler(
-              this,
-              surface ?? _Surface(defaultSurfaceId, _surfaceHelper(null)),
-            ).callRendererFunction(call, ++calls),
-          );
+          final Map<String, Object?> envelope = _SurfaceCompiler(
+            this,
+            surface ?? _Surface(defaultSurfaceId, _surfaceHelper(null)),
+          ).callRendererFunction(call, ++calls);
+          // The renderer answers each call by its id, so no two may share
+          // one.
+          final id =
+              (envelope['callRendererFunction']! as Map)['functionCallId']!
+                  as String;
+          if (!callIds.add(id)) {
+            throw A2uiValidationError(
+              "Two function calls of the block have the id '$id'. Give each "
+              'a functionCallId of its own.',
+            );
+          }
+          envelopes.add(envelope);
         case String():
           envelopes.add(_envelope('deleteSurface', {'surfaceId': operation}));
       }

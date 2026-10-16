@@ -87,13 +87,19 @@ void validatePayloads(
 Iterable<(String, String)> _catalogsNamed(
   AgentToRendererMessage message,
 ) sync* {
+  final bool v1 =
+      A2uiProtocolVersion.tryParse(
+        message.version,
+      )?.isAtLeast(A2uiProtocolVersion.v1_0) ??
+      false;
   switch (message) {
     case CreateSurfaceMessage(:final String surfaceId, :final catalogId):
       if (catalogId != null) yield ("Surface '$surfaceId'", catalogId);
+      if (!v1) return;
       for (final Map<String, Object?> component in message.components ?? []) {
         yield* _componentCatalogs(component);
       }
-    case UpdateComponentsMessage(:final components):
+    case UpdateComponentsMessage(:final components) when v1:
       for (final Map<String, Object?> component in components) {
         yield* _componentCatalogs(component);
       }
@@ -111,8 +117,11 @@ Iterable<(String, String)> _componentCatalogs(
   if (component['catalogId'] case final String catalogId) {
     yield ("Component '${component['id']}'", catalogId);
   }
+  // `metadata` holds no calls, as `MessageProcessor` reads it.
   for (final MapEntry<String, Object?> entry in component.entries) {
-    if (entry.key != 'catalogId') yield* _callCatalogs(entry.value);
+    if (entry.key != 'catalogId' && entry.key != 'metadata') {
+      yield* _callCatalogs(entry.value);
+    }
   }
 }
 

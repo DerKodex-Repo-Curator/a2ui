@@ -675,6 +675,43 @@ void main() {
         throwsError<A2uiValidationError>(),
       );
     });
+
+    test('checks a call nested in a renderer call against the catalog it '
+        'names', () {
+      Map<String, Object?> nesting(Map<String, Object?> args) =>
+          callRendererFunction('formatString', {
+            'value': {'@call': 'percent', 'catalogId': custom.id, 'args': args},
+          });
+      compile([
+        nesting({'value': 1}),
+      ]);
+      expect(
+        () => compile([
+          nesting({'text': 'x'}),
+        ]),
+        throwsError<A2uiValidationError>(),
+      );
+    });
+
+    test('rejects a renderer call with a field a function call does not '
+        'have', () {
+      expect(
+        () => compile([
+          {
+            'callRendererFunction': {
+              'functionCallId': 'call_1',
+              'callFunction': {
+                'catalogId': custom.id,
+                '@call': 'percent',
+                'args': {'value': 1},
+                'unknown': 1,
+              },
+            },
+          },
+        ]),
+        throwsError<A2uiValidationError>(),
+      );
+    });
   });
 
   group('Express', () {
@@ -880,6 +917,47 @@ void main() {
       expect(json(parser.compile(block)), json(messages));
     });
 
+    test('rejects two renderer calls with the same id', () {
+      expect(
+        () => ExpressParser([callable]).compile(
+          'formatString("One")\n'
+          'formatString("Two", functionCallId="call_1")',
+        ),
+        throwsError<A2uiValidationError>(),
+      );
+    });
+
+    test('decompiles a renderer call without arguments', () {
+      final CatalogApi refreshing = Catalog.fromJson({
+        'catalogId': 'https://example.com/refresh.json',
+        'protocolVersion': '1.0',
+        'components': {'Text': (basicDocument['components']! as Map)['Text']},
+        'functions': {
+          'refresh': {
+            'type': 'object',
+            'returnType': 'void',
+            'allowedCallers': 'agentOnly',
+            'properties': {
+              '@call': {'const': 'refresh'},
+              'args': {'type': 'object', 'unevaluatedProperties': false},
+            },
+            'required': ['@call'],
+          },
+        },
+      });
+      final parser = ExpressParser([refreshing]);
+      final String block = parser.decompile([
+        message({
+          'callRendererFunction': {
+            'functionCallId': 'call_1',
+            'callFunction': {'catalogId': refreshing.id, '@call': 'refresh'},
+          },
+        }),
+      ]);
+      expect(block, 'refresh()');
+      expect(parser.compile(block), [isA<CallRendererFunctionMessage>()]);
+    });
+
     test('has no notation for a renderer call on a surface, a response to '
         "the renderer's call, or surface metadata", () {
       final decompiler = ExpressDecompiler([basic]);
@@ -1080,6 +1158,72 @@ void main() {
       expect(json(parser.compile(block)), json(messages));
     });
 
+    test('decompiles a call to a function another catalog names a component '
+        'with its catalog', () {
+      final CatalogApi labels = Catalog.fromJson({
+        'catalogId': 'https://example.com/labels.json',
+        'protocolVersion': '1.0',
+        'components': {
+          'percent': {
+            'type': 'object',
+            'properties': {
+              'component': {'const': 'percent'},
+              'text': {'type': 'string'},
+            },
+            'required': ['component', 'text'],
+          },
+        },
+      });
+      final List<AgentToRendererMessage> messages = [
+        message({
+          'createSurface': {
+            'surfaceId': 's',
+            'components': [
+              {
+                'id': 'root',
+                'component': 'Text',
+                'catalogId': basic.id,
+                'text': {
+                  '@call': 'percent',
+                  'catalogId': custom.id,
+                  'args': {'value': 1},
+                },
+              },
+            ],
+          },
+        }),
+      ];
+      final parser = ExpressParser([basic, custom, labels]);
+      final String block = parser.decompile(messages);
+      expect(block, contains('percent(1, catalogId="${custom.id}")'));
+      expect(json(parser.compile(block)), json(messages));
+    });
+
+    test('rejects a call that names no catalog on a surface that names '
+        'none', () {
+      expect(
+        () => ExpressDecompiler(both).decompile([
+          message({
+            'createSurface': {
+              'surfaceId': 's',
+              'components': [
+                {
+                  'id': 'root',
+                  'component': 'Text',
+                  'catalogId': basic.id,
+                  'text': {
+                    '@call': 'formatString',
+                    'args': {'value': 'Hi'},
+                  },
+                },
+              ],
+            },
+          }),
+        ]),
+        throwsError<A2uiValidationError>(),
+      );
+    });
+
     test('teaches how an item names its catalog, and which names need it', () {
       final String snippet = ExpressFormat(both).promptGenerator.generate();
       expect(snippet, contains('A surface names no catalog'));
@@ -1173,6 +1317,25 @@ void main() {
         );
       },
     );
+
+    test('reads no calls in component metadata', () {
+      processor().parseResponse(
+        jsonBlock([
+          createSurface([
+            {
+              'id': 'root',
+              'component': 'Text',
+              'text': 'Hello',
+              'metadata': {
+                'extensions': {
+                  'tracking': {'@call': 'track', 'catalogId': 'vendor'},
+                },
+              },
+            },
+          ]),
+        ]),
+      );
+    });
 
     test('rejects a renderer call on a surface the response does not '
         'create', () {
