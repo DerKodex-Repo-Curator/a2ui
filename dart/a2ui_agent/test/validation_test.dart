@@ -241,6 +241,98 @@ void main() {
     test('accepts an empty payload', () {
       expect(() => validatePayload([basic], []), returnsNormally);
     });
+
+    test('checks the catalogs of an empty payload', () {
+      expect(() => validatePayload([], []), throwsA(isA<A2uiCatalogError>()));
+    });
+
+    CatalogApi sizedText(String id, String sizeType) => Catalog.fromJson({
+      'catalogId': id,
+      'protocolVersion': '0.9',
+      'components': {
+        'Text': {
+          'type': 'object',
+          'properties': {
+            'component': {'const': 'Text'},
+            'text': {'type': 'string'},
+            'size': {'type': sizeType},
+          },
+          'required': ['component', 'text'],
+        },
+      },
+    });
+
+    test('assumes a surface on a catalog that accepts every update to it', () {
+      // Both catalogs accept the first update, and only "b" accepts the
+      // second.
+      expect(
+        () => validatePayload(
+          [sizedText('a', 'string'), sizedText('b', 'number')],
+          [
+            update([
+              {'id': 't', 'component': 'Text', 'text': 'Hi'},
+            ]),
+            update([
+              {'id': 't', 'component': 'Text', 'text': 'Hi', 'size': 12},
+            ]),
+          ],
+        ),
+        returnsNormally,
+      );
+    });
+
+    test('reports the first catalog error when none accepts every update', () {
+      expect(
+        () => validatePayload(
+          [sizedText('a', 'string'), sizedText('b', 'number')],
+          [
+            update([
+              {'id': 't', 'component': 'Text', 'text': 'Hi', 'size': 12},
+            ]),
+            update([
+              {'id': 't', 'component': 'Text', 'text': 'Hi', 'size': 'big'},
+            ]),
+          ],
+        ),
+        throwsA(isA<A2uiValidationError>()),
+      );
+    });
+
+    test('does not assume a surface that an earlier message deleted', () {
+      expect(
+        () => validatePayload(
+          [basic],
+          [
+            create(),
+            update([
+              column('root', ['t']),
+              text('t'),
+            ]),
+            DeleteSurfaceMessage(version: 'v0.9', surfaceId: 's'),
+            update([text('t')]),
+          ],
+        ),
+        throwsA(isA<A2uiValidationError>()),
+      );
+    });
+
+    test('accepts a surface recreated after a delete', () {
+      expect(
+        () => validatePayload(
+          [basic],
+          [
+            update([text('t')]),
+            DeleteSurfaceMessage(version: 'v0.9', surfaceId: 's'),
+            create(),
+            update([
+              column('root', ['t']),
+              text('t'),
+            ]),
+          ],
+        ),
+        returnsNormally,
+      );
+    });
   });
 
   test('A2uiRequestProcessor accepts an example that updates a surface it '

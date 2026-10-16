@@ -45,7 +45,6 @@ void validatePayload(
   List<CatalogApi> catalogs,
   List<AgentToRendererMessage> payload,
 ) {
-  if (payload.isEmpty) return;
   final RendererState state = createPayloadState(catalogs);
   try {
     state.checkTopology(state.apply(payload));

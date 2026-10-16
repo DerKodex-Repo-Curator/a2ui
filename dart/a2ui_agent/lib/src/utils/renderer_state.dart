@@ -167,8 +167,8 @@ class RendererState {
     }
     final touched = <String>{};
     _frame(() {
-      for (final message in payload) {
-        final String? surfaceId = _applyMessage(message, payload);
+      for (var index = 0; index < payload.length; index++) {
+        final String? surfaceId = _applyMessage(payload, index);
         if (surfaceId != null) touched.add(surfaceId);
       }
     });
@@ -296,11 +296,10 @@ class RendererState {
   void _process(List<AgentToRendererMessage> messages) =>
       _asValidationError(() => _processor.processMessages(messages));
 
-  /// Applies one message and returns the surface it targets, if any.
-  String? _applyMessage(
-    AgentToRendererMessage message,
-    List<AgentToRendererMessage> payload,
-  ) {
+  /// Applies the message at [index] of [payload] and returns the surface it
+  /// targets, if any.
+  String? _applyMessage(List<AgentToRendererMessage> payload, int index) {
+    final AgentToRendererMessage message = payload[index];
     final String? surfaceId = _target(message);
     if (surfaceId == null) {
       _process([message]);
@@ -316,8 +315,10 @@ class RendererState {
         _assumed.remove(surfaceId);
         _changed.remove(surfaceId);
         return surfaceId;
-      case _ when getSurface(surfaceId) == null && _assumesUnknownSurfaces:
-        _assumeSurface(surfaceId, message, payload);
+      case _
+          when getSurface(surfaceId) == null &&
+              _assumes(surfaceId, payload, index):
+        _assumeSurface(surfaceId, payload, index);
       case _:
         _process([message]);
     }
@@ -336,20 +337,40 @@ class RendererState {
     );
   }
 
+  /// Whether an update to a surface the state lacks assumes the surface.
+  ///
+  /// A payload state assumes a surface the payload never named before, but
+  /// not one that an earlier message of the payload deleted: a renderer
+  /// rejects updates to it.
+  bool _assumes(
+    String surfaceId,
+    List<AgentToRendererMessage> payload,
+    int index,
+  ) =>
+      _assumesUnknownSurfaces &&
+      payload.take(index).every((m) => _target(m) != surfaceId);
+
   /// Creates a placeholder for an unknown surface and applies the update.
   ///
-  /// The surface is created on each catalog that defines every component the
-  /// payload adds to it, until one accepts the update. If none does, the
-  /// error from the first is thrown.
+  /// The updates to the surface are the message at [index] and the messages
+  /// after it that update the surface, up to one that creates or deletes it.
+  /// The surface is created on each catalog that defines every component
+  /// those updates add, until one accepts all of them, so a later update can
+  /// rule out a catalog that the first one fits. If none does, the error from
+  /// the first is thrown. Only the first update is applied here; the others
+  /// are applied in turn.
   void _assumeSurface(
     String surfaceId,
-    AgentToRendererMessage message,
     List<AgentToRendererMessage> payload,
+    int index,
   ) {
-    final Set<String> types = _componentTypes([
-      for (final AgentToRendererMessage m in payload)
-        if (_target(m) == surfaceId) m,
-    ]);
+    final AgentToRendererMessage message = payload[index];
+    final List<AgentToRendererMessage> updates = _surfaceUpdates(
+      surfaceId,
+      payload,
+      index,
+    );
+    final Set<String> types = _componentTypes(updates);
     final List<CatalogApi> fitting = [
       for (final CatalogApi catalog in catalogs)
         if (types.every(catalog.components.containsKey)) catalog,
@@ -363,12 +384,14 @@ class RendererState {
         catalogId: catalog.id,
       );
       try {
-        _process([placeholder, message]);
+        _process([placeholder, ...updates]);
       } on A2uiValidationError catch (error) {
-        _processor.model.deleteSurface(surfaceId);
         errors.add(error);
         continue;
+      } finally {
+        _processor.model.deleteSurface(surfaceId);
       }
+      _process([placeholder, message]);
       _assumed.add(surfaceId);
       return;
     }
@@ -396,8 +419,9 @@ class RendererState {
 
 /// A state that checks one payload on its own, with no record of earlier
 /// ones: an update to a surface it never saw created makes an empty
-/// placeholder for it, on the first catalog that defines the update's
-/// components and accepts it.
+/// placeholder for it, on the first catalog that defines the components of
+/// the payload's updates to it and accepts all of them. A surface that an
+/// earlier message of the payload deleted is not assumed again.
 ///
 /// For `validatePayload`; not exported.
 RendererState createPayloadState(List<CatalogApi> catalogs) =>
@@ -449,6 +473,25 @@ Set<String> _componentIds(AgentToRendererMessage message) => {
   for (final Map<String, Object?> component in _components(message))
     if (component['id'] case final String id) id,
 };
+
+/// The updates to [surfaceId] from [index] of [payload] on. They end before
+/// the next message that creates or deletes the surface.
+List<AgentToRendererMessage> _surfaceUpdates(
+  String surfaceId,
+  List<AgentToRendererMessage> payload,
+  int index,
+) {
+  final updates = <AgentToRendererMessage>[];
+  for (final AgentToRendererMessage message in payload.skip(index)) {
+    if (_target(message) != surfaceId) continue;
+    if (updates.isNotEmpty &&
+        (message is CreateSurfaceMessage || message is DeleteSurfaceMessage)) {
+      break;
+    }
+    updates.add(message);
+  }
+  return updates;
+}
 
 /// The component types [messages] add to their surface.
 ///
