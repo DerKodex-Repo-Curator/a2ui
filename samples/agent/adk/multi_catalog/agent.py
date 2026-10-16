@@ -33,6 +33,7 @@ from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
 from google.adk.models import Gemini
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService, Session
+from google.genai import errors as genai_errors
 from google.genai import types
 
 from a2ui.a2a import get_a2ui_agent_extension, stream_response_to_parts, to_a2a_parts
@@ -63,13 +64,14 @@ def _describe(part: Part) -> str:
 
 
 class SalesDashboardAgent:
-    """An agent that shows sales metrics with two catalogs.
+    """An agent that shows sales metrics with two catalogs on one surface.
 
-    The numbers go on a surface that uses the sample's dashboard catalog, and
-    the summary and the refresh button go on a surface that uses the basic
-    catalog. Each request negotiates its own processor from the client's
-    capabilities, and the prompt, the parser and validation use the catalogs it
-    holds.
+    It speaks A2UI v1.0, which lets one surface mix catalogs: the surface's
+    default catalog is the basic catalog, for the layout, the text and the
+    refresh button, and each `StatCard` and `ProgressBar` names the sample's
+    dashboard catalog in its own `catalogId`. Each request negotiates its own
+    processor from the client's capabilities, and the prompt, the parser and
+    validation use the catalogs it holds.
     """
 
     SUPPORTED_CONTENT_TYPES = ["text/plain"]
@@ -128,7 +130,10 @@ class SalesDashboardAgent:
             ),
             name="sales_dashboard_agent",
             description="An agent that shows sales metrics as a dashboard.",
-            instruction=instruction,
+            # A callable instruction is used as is. ADK fills `{name}` in a
+            # string instruction from the session state, and the A2UI schemas
+            # in the prompt contain such text.
+            instruction=lambda _: instruction,
             tools=[get_sales_metrics],
         )
         return Runner(
@@ -147,9 +152,6 @@ class SalesDashboardAgent:
             session = await self._session_service.create_session(
                 app_name=self._agent_name,
                 user_id=self._user_id,
-                # The prompt shows `{expression}`, which ADK reads as a state
-                # variable, so the variable holds the text itself.
-                state={"expression": "{expression}"},
                 session_id=session_id,
             )
         return session
@@ -170,7 +172,7 @@ class SalesDashboardAgent:
         Args:
             query: The user's question, or the text of a UI action.
             session_id: The conversation's id.
-            client_ui_capabilities: The `a2uiClientCapabilities` of the
+            client_ui_capabilities: The `a2uiRendererCapabilities` of the
                 request, or None for a client that renders no A2UI.
             use_streaming: Whether to send the UI while the model writes it.
         """
@@ -267,6 +269,12 @@ class SalesDashboardAgent:
                     )
                     for i, part in enumerate(final_parts, start=1):
                         logger.info(f"--- Final part {i}:\n{_describe(part)}")
+            except genai_errors.APIError as e:
+                # The model failed, for example with a 503 under load, after
+                # the client's retries. End the task with a message instead of
+                # dropping the connection.
+                logger.error(f"--- The model failed (attempt {attempt}): {e} ---")
+                break
             except A2uiError as e:
                 logger.warning(
                     f"--- A2UI validation failed (attempt {attempt}): {e} ---"
@@ -274,7 +282,7 @@ class SalesDashboardAgent:
                 logger.warning(f"--- Failed response: {''.join(received)[:500]}... ---")
                 if sent:
                     # The client already shows part of this response, and a
-                    # retry would create its surfaces again.
+                    # retry would create its surface again.
                     break
                 current_query = (
                     f"Your previous response was invalid. Validation failed: {e}."

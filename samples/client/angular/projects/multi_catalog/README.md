@@ -1,33 +1,39 @@
 # Angular multi-catalog client
 
 This client renders the
-[multi-catalog sales dashboard agent](../../../../agent/adk/multi_catalog). The
+[multi-catalog sales dashboard agent](../../../../agent/adk/multi_catalog) with
+A2UI v1.0, which lets one surface mix components from several catalogs. The
 renderer holds two catalogs:
 
-- the basic catalog (`BasicCatalog` from `@a2ui/angular/v0_9`), and
+- the v1.0 basic catalog (`BasicCatalog` from `@a2ui/angular`), and
 - the dashboard catalog in
   [`src/app/dashboard-catalog`](src/app/dashboard-catalog), which renders the
-  agent's `MetricGrid`, `StatCard` and `ProgressBar` components.
+  agent's `StatCard` and `ProgressBar` components.
 
-Each surface names its catalog in `createSurface`, so one response can show a
-`metrics` surface on the dashboard catalog and a `notes` surface on the basic
-catalog.
+The agent's `dashboard` surface names the basic catalog as its default catalog
+in `createSurface`. Each `StatCard` and `ProgressBar` names the dashboard catalog
+in its own `catalogId`, so a basic `Row` can hold dashboard components.
 
 ## How it works
 
 1. [`app.config.ts`](src/app/app.config.ts) registers both catalogs with
-   `provideA2Ui`.
-2. [`server.ts`](src/server.ts) forwards each request to the agent over A2A. It
-   sends the catalogs the renderer holds as `a2uiClientCapabilities`, keyed by
-   protocol version, and `useStreaming` in the message metadata. The agent
-   negotiates its catalogs from them.
-3. With `ENABLE_STREAMING` unset or `true`, the server uses `message/stream`
+   `provideA2UI`, the v1.0 provider. It renders the basic catalog with its
+   universal web components.
+2. The dashboard components are Angular components. The renderer wraps them as
+   custom elements and mounts them inside the basic catalog's elements, so they
+   use `ViewEncapsulation.ShadowDom` to keep their styles with them.
+3. [`server.ts`](src/server.ts) forwards each request to the agent over A2A with
+   the v1.0 extension. It sends the catalogs the renderer holds as
+   `a2uiRendererCapabilities`, keyed by protocol version, and `useStreaming` in
+   the message metadata. The agent negotiates its catalogs from them.
+4. With `ENABLE_STREAMING` unset or `true`, the server uses `message/stream`
    and passes each agent update on as a server-sent event, so the UI renders
    while the model writes it. With `ENABLE_STREAMING=false`, it uses
    `message/send` and returns the whole response at once.
-4. [`client.ts`](src/app/client.ts) passes the A2UI messages to the renderer.
-   The **Refresh** button sends its `refresh_dashboard` action back to the
-   agent as a `{"version": "v0.9", "action": ...}` data part.
+5. [`client.ts`](src/app/client.ts) passes the A2UI messages to the renderer, and
+   logs each one in the browser console. The **Refresh** button sends its
+   `refresh_dashboard` action back to the agent as a
+   `{"version": "v1.0", "action": ...}` data part.
 
 ## Running the sample
 

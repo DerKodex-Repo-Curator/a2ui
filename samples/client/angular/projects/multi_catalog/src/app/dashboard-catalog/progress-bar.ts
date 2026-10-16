@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import {CatalogComponent} from '@a2ui/angular/v0_9';
-import {ChangeDetectionStrategy, Component, computed} from '@angular/core';
+import {CatalogComponent} from '@a2ui/angular';
+import {ChangeDetectionStrategy, Component, computed, ViewEncapsulation} from '@angular/core';
 
 import {ProgressBarApi} from './apis';
 
@@ -23,8 +23,13 @@ import {ProgressBarApi} from './apis';
 @Component({
   selector: 'app-progress-bar',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  // The renderer mounts the component in a basic catalog element's shadow
+  // root, which document styles don't reach, so the component keeps its
+  // styles in a shadow root of its own.
+  encapsulation: ViewEncapsulation.ShadowDom,
   styles: `
-    :host {
+    .card {
+      flex: 1 1 0;
       display: flex;
       flex-direction: column;
       gap: 8px;
@@ -51,19 +56,21 @@ import {ProgressBarApi} from './apis';
     }
   `,
   template: `
-    <div class="header">
-      <span>{{ label() }}</span>
-      <strong>{{ percent() }}%</strong>
-    </div>
-    <div
-      class="track"
-      role="progressbar"
-      aria-valuemin="0"
-      aria-valuemax="100"
-      [attr.aria-valuenow]="percent()"
-      [attr.aria-label]="label()"
-    >
-      <div class="fill" [style.width.%]="percent()"></div>
+    <div class="card">
+      <div class="header">
+        <span>{{ label() }}</span>
+        <strong>{{ percent() }}%</strong>
+      </div>
+      <div
+        class="track"
+        role="progressbar"
+        aria-valuemin="0"
+        aria-valuemax="100"
+        [attr.aria-valuenow]="percent()"
+        [attr.aria-label]="label()"
+      >
+        <div class="fill" [style.width.%]="percent()"></div>
+      </div>
     </div>
   `,
 })

@@ -26,6 +26,10 @@ from agent import SalesDashboardAgent
 
 logger = logging.getLogger(__name__)
 
+# The message metadata key of the renderer capabilities in the v1.0 A2A
+# extension.
+RENDERER_CAPABILITIES_KEY = "a2uiRendererCapabilities"
+
 
 class SalesDashboardAgentExecutor(AgentExecutor):
     """Runs the sales dashboard agent for A2A requests."""
@@ -37,10 +41,11 @@ class SalesDashboardAgentExecutor(AgentExecutor):
         active_ui_version = try_activate_a2ui_extension(context, self._agent.agent_card)
         metadata = (context.message.metadata if context.message else None) or {}
 
-        # The client sends the catalogs it renders, keyed by protocol version,
-        # and whether it reads the response as a stream.
+        # The renderer sends the catalogs it renders, keyed by protocol version,
+        # in the metadata key that the v1.0 A2A extension defines. The client
+        # also says whether it reads the response as a stream.
         client_ui_capabilities = (
-            metadata.get("a2uiClientCapabilities") if active_ui_version else None
+            metadata.get(RENDERER_CAPABILITIES_KEY) if active_ui_version else None
         )
         use_streaming = bool(metadata.get("useStreaming", True))
         logger.info(

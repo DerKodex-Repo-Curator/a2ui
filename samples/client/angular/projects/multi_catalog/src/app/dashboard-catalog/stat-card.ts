@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import {CatalogComponent} from '@a2ui/angular/v0_9';
-import {ChangeDetectionStrategy, Component, computed} from '@angular/core';
+import {CatalogComponent} from '@a2ui/angular';
+import {ChangeDetectionStrategy, Component, computed, ViewEncapsulation} from '@angular/core';
 
 import {StatCardApi} from './apis';
 
@@ -23,8 +23,13 @@ import {StatCardApi} from './apis';
 @Component({
   selector: 'app-stat-card',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  // The renderer mounts the component in a basic catalog element's shadow
+  // root, which document styles don't reach, so the component keeps its
+  // styles in a shadow root of its own.
+  encapsulation: ViewEncapsulation.ShadowDom,
   styles: `
-    :host {
+    .card {
+      flex: 1 1 0;
       display: flex;
       flex-direction: column;
       gap: 4px;
@@ -49,11 +54,13 @@ import {StatCardApi} from './apis';
     }
   `,
   template: `
-    <span class="label">{{ label() }}</span>
-    <span class="value">{{ value() }}</span>
-    @if (caption()) {
-      <span class="caption">{{ caption() }}</span>
-    }
+    <div class="card">
+      <span class="label">{{ label() }}</span>
+      <span class="value">{{ value() }}</span>
+      @if (caption()) {
+        <span class="caption">{{ caption() }}</span>
+      }
+    </div>
   `,
 })
 export class StatCard extends CatalogComponent<typeof StatCardApi> {

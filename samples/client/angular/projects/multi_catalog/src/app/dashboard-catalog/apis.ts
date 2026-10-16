@@ -14,21 +14,11 @@
  * limitations under the License.
  */
 
-import {
-  ChildListSchema,
-  ComponentApi,
-  DynamicNumberSchema,
-  DynamicStringSchema,
-} from '@a2ui/web_core/v0_9';
+import {ComponentApi, DynamicNumberSchema, DynamicStringSchema} from '@a2ui/web_core/v1_0';
 import {z} from 'zod';
 
 // The properties of each component, as the agent's dashboard_catalog.json
 // defines them.
-
-export const MetricGridApi = {
-  name: 'MetricGrid',
-  schema: z.object({children: ChildListSchema}),
-} satisfies ComponentApi;
 
 export const StatCardApi = {
   name: 'StatCard',
@@ -36,6 +26,7 @@ export const StatCardApi = {
     label: DynamicStringSchema,
     value: DynamicStringSchema,
     caption: DynamicStringSchema.optional(),
+    weight: z.number().optional(),
   }),
 } satisfies ComponentApi;
 
@@ -44,5 +35,6 @@ export const ProgressBarApi = {
   schema: z.object({
     label: DynamicStringSchema,
     percent: DynamicNumberSchema,
+    weight: z.number().optional(),
   }),
 } satisfies ComponentApi;

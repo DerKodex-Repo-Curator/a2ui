@@ -17,7 +17,9 @@
 Each mode sends a question and an A2UI action, collects the A2UI messages of
 each response, and checks that they:
 
-1. create a surface on each of the two catalogs, and
+1. create one surface that mixes the two catalogs: its default catalog is the
+   basic catalog, and some of its components name the dashboard catalog in
+   their own `catalogId`, and
 2. pass `validate_payload` against both catalogs, the way a renderer that holds
    them would check them.
 
@@ -35,6 +37,7 @@ import httpx
 
 from a2ui.a2a import get_a2ui_extension_uri
 from a2ui.utils import validate_payload
+from agent_executor import RENDERER_CAPABILITIES_KEY
 from prompt_builder import VERSION, build_generator
 
 _GENERATOR = build_generator()
@@ -50,7 +53,7 @@ def _message(parts: list[dict[str, Any]], context_id: str, streaming: bool) -> d
         "kind": "message",
         "parts": parts,
         "metadata": {
-            "a2uiClientCapabilities": {
+            RENDERER_CAPABILITIES_KEY: {
                 VERSION.value: {"supportedCatalogIds": _CATALOG_IDS}
             },
             "useStreaming": streaming,
@@ -118,20 +121,35 @@ def _stream(client: httpx.Client, url: str, message: dict) -> tuple[list[dict], 
 
 
 def _check(name: str, messages: list[dict], events: int, streaming: bool) -> None:
-    surfaces = {
+    default_catalogs = {
         m["createSurface"]["surfaceId"]: m["createSurface"]["catalogId"]
         for m in messages
         if "createSurface" in m
     }
+    # The catalog each component type resolves to: its own `catalogId`, or its
+    # surface's default catalog.
+    resolved: dict[str, set[str]] = {}
+    for m in messages:
+        update = m.get("updateComponents")
+        if not update:
+            continue
+        default = default_catalogs.get(update["surfaceId"])
+        for component in update["components"]:
+            catalog_id = component.get("catalogId", default)
+            resolved.setdefault(catalog_id, set()).add(component["component"])
     print(f"  {name}: {len(messages)} A2UI messages in {events} events")
-    print(f"    surfaces: {surfaces}")
-    missing = set(_CATALOG_IDS) - set(surfaces.values())
+    print(f"    surfaces and their default catalogs: {default_catalogs}")
+    for catalog_id, types in resolved.items():
+        print(f"    components on {catalog_id}: {sorted(types)}")
+    if len(default_catalogs) != 1:
+        raise AssertionError(f"{name}: expected one surface, got {default_catalogs}")
+    missing = set(_CATALOG_IDS) - set(resolved)
     if missing:
-        raise AssertionError(f"{name}: no surface on {sorted(missing)}")
+        raise AssertionError(f"{name}: no component on {sorted(missing)}")
     validate_payload(_CATALOGS, messages)
     if streaming and events < 2:
         raise AssertionError(f"{name}: the UI arrived in {events} event, not streamed")
-    print("    OK: both catalogs, valid")
+    print("    OK: one surface mixes both catalogs, valid")
 
 
 @click.command()
@@ -158,8 +176,8 @@ def main(url: str, region: str) -> None:
                         "version": VERSION.value,
                         "action": {
                             "name": "refresh_dashboard",
-                            "surfaceId": "notes",
-                            "sourceComponentId": "refresh-button",
+                            "surfaceId": "dashboard",
+                            "sourceComponentId": "refresh_button",
                             "timestamp": "2026-01-01T00:00:00Z",
                             "context": {"region": "Asia Pacific"},
                         },

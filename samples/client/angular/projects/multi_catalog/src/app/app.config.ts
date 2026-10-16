@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import {BasicCatalog, provideA2Ui, provideMarkdownRenderer} from '@a2ui/angular/v0_9';
+import {BasicCatalog, provideA2UI, provideMarkdownRenderer} from '@a2ui/angular';
 import {renderMarkdown} from '@a2ui/markdown-it';
-import {A2uiClientAction} from '@a2ui/web_core/v0_9';
+import {ActionPayload} from '@a2ui/web_core/v1_0';
 import {
   ApplicationConfig,
   inject,
@@ -34,13 +34,14 @@ export const appConfig: ApplicationConfig = {
     provideBrowserGlobalErrorListeners(),
     provideZonelessChangeDetection(),
     provideClientHydration(withEventReplay()),
-    // The renderer holds both catalogs. Each surface names the one it uses in
-    // its `createSurface` message.
-    provideA2Ui(() => {
+    // The A2UI v1.0 renderer holds both catalogs. A surface names its default
+    // catalog in `createSurface`, and a component from another catalog names
+    // that catalog in its own `catalogId`, so one surface can mix them.
+    provideA2UI(() => {
       const injector = inject(Injector);
       return {
         catalogs: [inject(BasicCatalog), DASHBOARD_CATALOG],
-        actionHandler: (action: A2uiClientAction) => injector.get(Client).handleAction(action),
+        actionHandler: (action: ActionPayload) => injector.get(Client).handleAction(action),
       };
     }),
     // The basic catalog's Text renders Markdown.

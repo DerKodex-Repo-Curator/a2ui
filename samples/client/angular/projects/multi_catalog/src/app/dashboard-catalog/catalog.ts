@@ -14,23 +14,25 @@
  * limitations under the License.
  */
 
-import {AngularCatalog, createComponentImplementation} from '@a2ui/angular/v0_9';
+import {AngularCatalog, createComponentImplementation} from '@a2ui/angular';
 
-import {MetricGridApi, ProgressBarApi, StatCardApi} from './apis';
-import {MetricGrid} from './metric-grid';
+import {ProgressBarApi, StatCardApi} from './apis';
 import {ProgressBar} from './progress-bar';
 import {StatCard} from './stat-card';
 
 /**
  * The id of the dashboard catalog. The agent defines the catalog in
- * samples/agent/adk/multi_catalog/catalogs/0.9/dashboard_catalog.json.
+ * samples/agent/adk/multi_catalog/catalogs/1.0/dashboard_catalog.json.
  */
 export const DASHBOARD_CATALOG_ID =
-  'https://a2ui.org/samples/agent/adk/multi_catalog/catalogs/0.9/dashboard_catalog.json';
+  'https://a2ui.org/samples/agent/adk/multi_catalog/catalogs/1.0/dashboard_catalog.json';
 
-/** Renders the components of the dashboard catalog. */
-export const DASHBOARD_CATALOG = new AngularCatalog(DASHBOARD_CATALOG_ID, '0.9', [
-  createComponentImplementation(MetricGridApi, MetricGrid),
+/**
+ * Renders the components of the dashboard catalog. In A2UI v1.0 they can sit on
+ * a surface whose default catalog is the basic catalog, when each names this
+ * catalog in its own `catalogId`.
+ */
+export const DASHBOARD_CATALOG = new AngularCatalog(DASHBOARD_CATALOG_ID, '1.0', [
   createComponentImplementation(StatCardApi, StatCard),
   createComponentImplementation(ProgressBarApi, ProgressBar),
 ]);

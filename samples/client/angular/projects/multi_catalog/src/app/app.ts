@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {SurfaceComponent} from '@a2ui/angular/v0_9';
+import {SurfaceComponent} from '@a2ui/angular';
 import {ChangeDetectionStrategy, Component, inject} from '@angular/core';
 
 import {Client} from './client';
@@ -41,6 +41,7 @@ export class App {
   }
 
   protected catalogName(catalogId: string | undefined): string {
-    return catalogId?.endsWith('dashboard_catalog.json') ? 'dashboard catalog' : 'basic catalog';
+    if (!catalogId) return 'no default catalog';
+    return catalogId.endsWith('dashboard_catalog.json') ? 'dashboard catalog' : 'basic catalog';
   }
 }

@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import {A2uiRendererService} from '@a2ui/angular/v0_9';
-import {A2uiClientAction, A2uiMessage} from '@a2ui/web_core/v0_9';
+import {A2uiRendererService} from '@a2ui/angular';
+import {ActionPayload} from '@a2ui/web_core/v1_0';
 import {inject, Injectable, signal} from '@angular/core';
 
 /** The A2A parts that the server forwards from the agent. */
@@ -65,8 +65,8 @@ export class Client {
     await this.request({query});
   }
 
-  async handleAction(action: A2uiClientAction) {
-    await this.request({event: {version: 'v0.9', action}});
+  async handleAction(action: ActionPayload) {
+    await this.request({event: {version: 'v1.0', action}});
   }
 
   private async request(body: {query?: string; event?: unknown}) {
@@ -134,12 +134,12 @@ export class Client {
     if (data.contextId) {
       this.contextId = data.contextId;
     }
-    const messages: A2uiMessage[] = [];
+    const messages: Record<string, unknown>[] = [];
     for (const part of data.parts ?? []) {
       if (part.kind === 'text' && part.text) {
         this.agentText.update(text => text + part.text);
       } else if (part.kind === 'data' && part.data) {
-        const data = part.data as A2uiMessage | A2uiMessage[];
+        const data = part.data as Record<string, unknown> | Record<string, unknown>[];
         messages.push(...(Array.isArray(data) ? data : [data]));
       }
     }

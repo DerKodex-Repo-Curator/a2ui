@@ -27,18 +27,20 @@ import {join} from 'node:path';
 import {v4 as uuidv4} from 'uuid';
 
 const AGENT_URL = process.env['AGENT_URL'] ?? 'http://localhost:10010';
-const A2UI_EXTENSION = 'https://a2ui.org/a2a-extension/a2ui/v0.9';
+const A2UI_EXTENSION = 'https://a2ui.org/a2a-extension/a2ui/v1.0';
 const enableStreaming = process.env['ENABLE_STREAMING'] !== 'false';
 
 /**
- * The catalogs that the renderer registers in app.config.ts. The agent picks
- * the ones it supports too, and validates each surface against its catalog.
+ * The catalogs that the renderer registers in app.config.ts, sent as the
+ * `a2uiRendererCapabilities` of the v1.0 A2A extension. The agent picks the
+ * ones it supports too, and validates each component against the catalog it
+ * resolves to.
  */
-const A2UI_CLIENT_CAPABILITIES = {
-  'v0.9': {
+const A2UI_RENDERER_CAPABILITIES = {
+  'v1.0': {
     supportedCatalogIds: [
-      'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
-      'https://a2ui.org/samples/agent/adk/multi_catalog/catalogs/0.9/dashboard_catalog.json',
+      'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+      'https://a2ui.org/samples/agent/adk/multi_catalog/catalogs/1.0/dashboard_catalog.json',
     ],
   },
 };
@@ -67,7 +69,7 @@ app.post('/a2a', express.json(), async (req, res) => {
       kind: 'message',
       parts,
       metadata: {
-        a2uiClientCapabilities: A2UI_CLIENT_CAPABILITIES,
+        a2uiRendererCapabilities: A2UI_RENDERER_CAPABILITIES,
         useStreaming: enableStreaming,
       },
     },

@@ -21,12 +21,12 @@ from a2ui.core.schema import AgentToRendererMessage, ProtocolVersion
 from a2ui.parser import to_message_models
 from a2ui.processor import A2uiGenerator, A2uiRequestProcessor, CatalogConfig
 
-VERSION = ProtocolVersion.V0_9
+VERSION = ProtocolVersion.V1_0
 
 _SAMPLE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 DASHBOARD_CATALOG_PATH = os.path.join(
-    _SAMPLE_DIR, "catalogs", "0.9", "dashboard_catalog.json"
+    _SAMPLE_DIR, "catalogs", "1.0", "dashboard_catalog.json"
 )
 
 ROLE_DESCRIPTION = (
@@ -36,12 +36,13 @@ ROLE_DESCRIPTION = (
 
 UI_DESCRIPTION = """
 -   To answer a question about a region's sales, you MUST call the `get_sales_metrics` tool first, and use the data it returns.
--   Show the numbers on a surface with the id "metrics" that uses the dashboard catalog. Its root is a `MetricGrid` with `StatCard` and `ProgressBar` children.
--   Show the summary on a separate surface with the id "notes" that uses the basic catalog. It has a title, the highlights, and a "Refresh" `Button` whose action is the `refresh_dashboard` event with the region in its context.
--   Each surface only uses the components of its own catalog. Never put a basic component on the "metrics" surface, or a dashboard component on the "notes" surface.
--   Write the data with `updateDataModel` at the path "/" of each surface, and bind the components to it.
--   If the tool returns an error for an unknown region, show only the "notes" surface, and name the regions that have data.
--   If the query is "USER_REFRESHED_DASHBOARD: <region>", call the tool again for that region and show both surfaces again.
+-   Show the answer on ONE surface with the id "dashboard". Its default catalog, the `catalogId` of `createSurface`, is the basic catalog.
+-   Mix the two catalogs on that surface. Use the basic catalog for the layout (`Column`, `Row`), the title, the highlights and a "Refresh" `Button`. Use the dashboard catalog's `StatCard` and `ProgressBar` for the numbers.
+-   Every `StatCard` and `ProgressBar` MUST set `catalogId` to the dashboard catalog's id, since they are not in the surface's default catalog. Basic components leave `catalogId` out.
+-   The "Refresh" button's action is the `refresh_dashboard` event, with the region in its context.
+-   Write the data with one `updateDataModel` at the path "/", and bind the components to it with `{"@path": ...}`.
+-   If the tool returns an error for an unknown region, show only basic `Text` on the surface, and name the regions that have data.
+-   If the query is "USER_REFRESHED_DASHBOARD: <region>", call the tool again for that region and show the dashboard again.
 """
 
 
@@ -51,7 +52,7 @@ def load_example_turns() -> list[list[AgentToRendererMessage]]:
     The generator that holds them checks them against each request's catalogs,
     and the format writes them into `processor.prompt_snippet`.
     """
-    examples_dir = os.path.join(_SAMPLE_DIR, "examples", "0.9")
+    examples_dir = os.path.join(_SAMPLE_DIR, "examples", "1.0")
     turns: list[list[AgentToRendererMessage]] = []
     for path in sorted(glob.glob(os.path.join(examples_dir, "*.json"))):
         with open(path, encoding="utf-8") as f:
@@ -60,11 +61,11 @@ def load_example_turns() -> list[list[AgentToRendererMessage]]:
 
 
 def build_generator() -> A2uiGenerator:
-    """Builds the generator for the basic catalog and the dashboard catalog."""
+    """Builds the generator for the v1.0 basic catalog and the dashboard catalog."""
     return A2uiGenerator(
         [
             CatalogConfig(BasicCatalog(VERSION)),
-            CatalogConfig.from_path(DASHBOARD_CATALOG_PATH, protocol_version=VERSION),
+            CatalogConfig.from_path(DASHBOARD_CATALOG_PATH),
         ],
         examples=load_example_turns(),
     )

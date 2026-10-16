@@ -45,7 +45,10 @@
   <div class="surfaces">
     @for (surface of client.surfaces(); track surface.id) {
       <section class="surface" [attr.data-surface-id]="surface.id">
-        <div class="surface-label">{{ surface.id }} · {{ catalogName(surface.catalogId) }}</div>
+        <div class="surface-label">
+          {{ surface.id }} · default: {{ catalogName(surface.catalogId) }} · stat cards and progress
+          bars: dashboard catalog
+        </div>
         <a2ui-v09-surface [surfaceId]="surface.id" />
       </section>
     }
