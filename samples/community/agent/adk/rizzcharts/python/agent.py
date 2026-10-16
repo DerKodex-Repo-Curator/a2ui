@@ -65,14 +65,14 @@ class RizzchartsAgent:
         self.base_url = base_url
         self._model = model
 
-        self._agent_name = "mcp_app_proxy_agent"
+        self._agent_name = "rizzcharts_agent"
         self._user_id = "remote_agent"
 
         self._session_service = InMemorySessionService()
         self._memory_service = InMemoryMemoryService()
         self._artifact_service = InMemoryArtifactService()
 
-        self._examples_paths: dict[str, dict[str, str]] = {}
+        self._examples_paths: dict[ProtocolVersion, dict[str, str]] = {}
         self._generators: dict[ProtocolVersion, A2uiGenerator] = {
             version: self._build_generator(version)
             for version in [ProtocolVersion.V0_8, ProtocolVersion.V0_9]
