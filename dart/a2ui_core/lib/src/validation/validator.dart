@@ -431,6 +431,21 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
       throw A2uiValidationError("A function call has no string '@call'.");
     }
     final Map<String, Object?> args = _callArgs(call, name);
+    final Object? callCatalog = call['catalogId'];
+    if (callCatalog != null && callCatalog is! String) {
+      throw A2uiValidationError(
+        "Function call '$name' has a non-string 'catalogId'.",
+      );
+    }
+    if (callCatalog is String &&
+        callCatalog != catalog.id &&
+        !name.startsWith('@')) {
+      validatorFor(callCatalog).validateFunctionCall(
+        call,
+        validatorFor: validatorFor,
+      );
+      return;
+    }
     _checkCallKeys(call, name);
     validateFunction(name, args);
 
