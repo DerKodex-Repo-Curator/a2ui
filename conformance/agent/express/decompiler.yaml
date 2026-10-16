@@ -50,6 +50,11 @@
 # v1.0. A case states no version of its own: the version it runs under is the
 # one its catalog document declares.
 
+# `args.history` lists the messages the renderer received before the case
+# starts. A case that updates a surface it does not create puts the surface's
+# `createSurface` there, since a renderer rejects an update to a surface it
+# does not hold.
+
 - name: test_decompile_express_components
   description: A createSurface writes back out as the surface line and the component assignments it came from.
   action: decompile
@@ -101,6 +106,9 @@
   description: An updateComponents writes back out as the component assignments it came from, and a block naming no root is an update to a surface that already exists rather than a create.
   action: decompile
   args:
+    history:
+      - {version: "v1.0", createSurface: {surfaceId: "s1", catalogId: "conformance/simplified"}}
+      - {version: "v1.0", updateComponents: {surfaceId: "s1", components: [{id: "root", component: "Column", children: ["greeting"]}]}}
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
@@ -120,6 +128,8 @@
   description: A standalone data model update writes back out as the data path assignment that would produce it, with no component assignment beside it to make the block a create.
   action: decompile
   args:
+    history:
+      - {version: "v1.0", createSurface: {surfaceId: "s1", catalogId: "conformance/simplified"}}
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
@@ -263,6 +273,8 @@
   description: A data model of nested maps writes out as one assignment per leaf path rather than as a map literal against the root, because the compiler builds the nesting back up from the paths.
   action: decompile
   args:
+    history:
+      - {version: "v1.0", createSurface: {surfaceId: "s1", catalogId: "conformance/simplified"}}
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
@@ -675,6 +687,8 @@
   description: An updateDataModel setting a scalar value at a non-root path ("/title") writes out as a single path assignment ($/title = "x").
   action: decompile
   args:
+    history:
+      - {version: "v1.0", createSurface: {surfaceId: "s1", catalogId: "conformance/simplified"}}
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:

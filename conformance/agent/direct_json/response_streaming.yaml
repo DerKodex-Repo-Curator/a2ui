@@ -102,6 +102,11 @@
 # version" run them against v0.8, v0.9 and v1.0 catalogs alike. The v0.8 and
 # v0.9 cases use `streaming_catalog_v0_8.json` and `streaming_catalog_v0_9.json`.
 
+# `args.history` lists the messages the renderer received before the case
+# starts. A case that updates a surface it does not create puts the surface's
+# `createSurface` there, since a renderer rejects an update to a surface it
+# does not hold.
+
 # --- Text as it arrives ---
 
 - name: test_chunk_text_emitted_as_it_arrives
@@ -122,6 +127,8 @@
   description: Chunks that fall between parts yield exactly the parts a single call would.
   action: parse_chunk
   args:
+    history:
+      - {version: "v1.0", createSurface: {surfaceId: "s1", catalogId: "conformance/simplified"}}
     format: direct_json
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   steps:
@@ -227,6 +234,8 @@
   description: A payload that is still half a message yields nothing until the rest of it lands.
   action: parse_chunk
   args:
+    history:
+      - {version: "v1.0", createSurface: {surfaceId: "s1", catalogId: "conformance/simplified"}}
     format: direct_json
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     progressive_keys: []
@@ -249,6 +258,8 @@
   description: A string still arriving under a progressive key is closed where it stands, so the payload is emitted and emitted again when the rest of the value lands.
   action: parse_chunk
   args:
+    history:
+      - {version: "v1.0", createSurface: {surfaceId: "s1", catalogId: "conformance/simplified"}}
     format: direct_json
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     progressive_keys: ["greeting"]
@@ -274,6 +285,8 @@
   description: A value arriving under a key that may not be closed early holds the whole payload back, incomplete pair and all.
   action: parse_chunk
   args:
+    history:
+      - {version: "v1.0", createSurface: {surfaceId: "s1", catalogId: "conformance/simplified"}}
     format: direct_json
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     progressive_keys: ["text"]
@@ -297,6 +310,8 @@
   description: The healable set is the one the case names rather than a fixed list, so the value of an `updateDataModel` heals when the case names `value`.
   action: parse_chunk
   args:
+    history:
+      - {version: "v1.0", createSurface: {surfaceId: "s1", catalogId: "conformance/simplified"}}
     format: direct_json
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     progressive_keys: ["value"]
@@ -322,6 +337,8 @@
   description: A progressive key does not open a component early. The component still arriving is held back, healable text and all, and emitted once its object closes.
   action: parse_chunk
   args:
+    history:
+      - {version: "v1.0", createSurface: {surfaceId: "s1", catalogId: "conformance/simplified"}}
     format: direct_json
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     progressive_keys: ["text"]
@@ -348,6 +365,8 @@
   description: The components that have closed are emitted while the next one is still arriving, and the message is emitted again once that one closes.
   action: parse_chunk
   args:
+    history:
+      - {version: "v1.0", createSurface: {surfaceId: "s1", catalogId: "conformance/simplified"}}
     format: direct_json
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     progressive_keys: ["text"]
@@ -406,6 +425,8 @@
   description: A boundary inside a string value holds the payload back when healing is off, and changes nothing about what is finally emitted.
   action: parse_chunk
   args:
+    history:
+      - {version: "v1.0", createSurface: {surfaceId: "s1", catalogId: "conformance/simplified"}}
     format: direct_json
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     progressive_keys: []
@@ -428,6 +449,8 @@
   description: A close tag that is being written inside a payload string does not end the block, even when the boundary falls inside it.
   action: parse_chunk
   args:
+    history:
+      - {version: "v1.0", createSurface: {surfaceId: "s1", catalogId: "conformance/simplified"}}
     format: direct_json
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     progressive_keys: []
@@ -450,6 +473,8 @@
   description: A stream with two blocks keeps the text between them in its place.
   action: parse_chunk
   args:
+    history:
+      - {version: "v1.0", createSurface: {surfaceId: "s1", catalogId: "conformance/simplified"}}
     format: direct_json
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   steps:
@@ -544,6 +569,8 @@
   description: A data binding path cut in half is held, since a path that is closed early reads a different place in the data model.
   action: parse_chunk
   args:
+    history:
+      - {version: "v1.0", createSurface: {surfaceId: "s1", catalogId: "conformance/simplified"}}
     format: direct_json
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     progressive_keys: ["text"]
@@ -567,6 +594,8 @@
   description: A component name cut in half is held, since closing it early names a component the catalog does not have.
   action: parse_chunk
   args:
+    history:
+      - {version: "v1.0", createSurface: {surfaceId: "s1", catalogId: "conformance/simplified"}}
     format: direct_json
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     progressive_keys: ["text"]
@@ -589,6 +618,8 @@
   description: A child reference cut in half is held, since closing it early points the parent at a component that does not exist.
   action: parse_chunk
   args:
+    history:
+      - {version: "v1.0", createSurface: {surfaceId: "s1", catalogId: "conformance/simplified"}}
     format: direct_json
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     progressive_keys: ["text"]
@@ -614,6 +645,8 @@
   description: An entry in a list of child ids is not the value of a property, so there is no key to make it healable and the list is held until it closes.
   action: parse_chunk
   args:
+    history:
+      - {version: "v1.0", createSurface: {surfaceId: "s1", catalogId: "conformance/simplified"}}
     format: direct_json
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     progressive_keys: ["text"]
@@ -642,6 +675,8 @@
   description: A template that has its component id and not yet its path reads as JSON and is still not a child list the catalog describes, so it is held rather than emitted.
   action: parse_chunk
   args:
+    history:
+      - {version: "v1.0", createSurface: {surfaceId: "s1", catalogId: "conformance/simplified"}}
     format: direct_json
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     progressive_keys: ["text"]
@@ -740,6 +775,8 @@
   description: A data model that arrives an entry at a time is emitted as it stands on each chunk, starting from the empty object that encloses it.
   action: parse_chunk
   args:
+    history:
+      - {version: "v1.0", createSurface: {surfaceId: "s1", catalogId: "conformance/simplified"}}
     format: direct_json
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     progressive_keys: []
@@ -779,6 +816,8 @@
   description: A key that has arrived with nothing after it holds its message back, the same as a value that is half written, rather than being dropped to emit the rest.
   action: parse_chunk
   args:
+    history:
+      - {version: "v1.0", createSurface: {surfaceId: "s1", catalogId: "conformance/simplified"}}
     format: direct_json
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     progressive_keys: []
@@ -1289,7 +1328,7 @@
                 root: "root"
 
 - name: test_stream_update_before_create_surface_fails_v09
-  description: An updateComponents before its surface's createSurface is emitted while the block arrives, and the block raises a validation error when it closes, since the surface did not exist yet.
+  description: An updateComponents for a surface that does not exist yet is held back, since a renderer would reject it, and the block raises a validation error when it closes.
   action: parse_chunk
   args:
     format: direct_json
@@ -1299,15 +1338,7 @@
     - input: "<a2ui-json>["
       expect: []
     - input: '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "hi"}]}}, '
-      expect:
-        - a2ui:
-            - version: "v0.9"
-              updateComponents:
-                surfaceId: "s1"
-                components:
-                  - id: "root"
-                    component: "Text"
-                    text: "hi"
+      expect: []
     - input: '{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId": "s1"}}]</a2ui-json>'
       expect_error:
         category: "ValidationError"
@@ -3061,7 +3092,7 @@
                           path: "/name"
 
 - name: test_stream_data_model_before_create_surface_fails_v09
-  description: An updateDataModel before its surface's createSurface is emitted while the block arrives, and the block raises a validation error when it closes.
+  description: An updateDataModel for a surface that does not exist yet is held back, since a renderer would reject it, the messages after it wait with it, and the block raises a validation error when it closes.
   action: parse_chunk
   args:
     format: direct_json
@@ -3071,20 +3102,9 @@
     - input: "<a2ui-json>["
       expect: []
     - input: '{"version": "v0.9", "updateDataModel": {"surfaceId": "s1", "value": {"name": "Alice"}}}, '
-      expect:
-        - a2ui:
-            - version: "v0.9"
-              updateDataModel:
-                surfaceId: "s1"
-                value:
-                  name: Alice
+      expect: []
     - input: '{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId": "s1"}}, '
-      expect:
-        - a2ui:
-            - version: "v0.9"
-              createSurface:
-                surfaceId: "s1"
-                catalogId: "test_catalog"
+      expect: []
     - input: '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": {"path": "/name"}}]}}]</a2ui-json>'
       expect_error:
         category: "ValidationError"
@@ -3424,6 +3444,8 @@
   description: A data model value cut right after its key holds the message back until the value arrives.
   action: parse_chunk
   args:
+    history:
+      - {version: "v0.9", createSurface: {surfaceId: "default", catalogId: "test_catalog"}}
     format: direct_json
     catalog: "test_data/catalogs/streaming_catalog_v0_9.json"
     progressive_keys: []
@@ -3480,6 +3502,8 @@
   description: A key cut across chunks holds the message back, and so does a value under a key outside the progressive set.
   action: parse_chunk
   args:
+    history:
+      - {version: "v0.9", createSurface: {surfaceId: "default", catalogId: "test_catalog"}}
     format: direct_json
     catalog: "test_data/catalogs/streaming_catalog_v0_9.json"
     progressive_keys: []
@@ -3545,6 +3569,8 @@
   description: Each emission of a growing data model update carries the entries that arrived before, not only the new ones.
   action: parse_chunk
   args:
+    history:
+      - {version: "v0.9", createSurface: {surfaceId: "default", catalogId: "test_catalog"}}
     format: direct_json
     catalog: "test_data/catalogs/streaming_catalog_v0_9.json"
     progressive_keys: []
@@ -3592,6 +3618,8 @@
   description: A data model key that has arrived without its value holds the message back rather than being pruned to emit the rest.
   action: parse_chunk
   args:
+    history:
+      - {version: "v0.9", createSurface: {surfaceId: "default", catalogId: "test_catalog"}}
     format: direct_json
     catalog: "test_data/catalogs/streaming_catalog_v0_9.json"
     progressive_keys: []
@@ -3629,6 +3657,8 @@
   description: A trailing data model key that has arrived without its value holds the message back rather than being pruned to emit the rest.
   action: parse_chunk
   args:
+    history:
+      - {version: "v0.9", createSurface: {surfaceId: "default", catalogId: "test_catalog"}}
     format: direct_json
     catalog: "test_data/catalogs/streaming_catalog_v0_9.json"
     progressive_keys: []

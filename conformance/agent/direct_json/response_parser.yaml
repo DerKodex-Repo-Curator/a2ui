@@ -56,6 +56,11 @@
 # v1.0. A case states no version of its own: the version it runs under is the
 # one its catalog document declares.
 
+# `args.history` lists the messages the renderer received before the case
+# starts. A case that updates a surface it does not create puts the surface's
+# `createSurface` there, since a renderer rejects an update to a surface it
+# does not hold.
+
 # --- Unwrapping a response ---
 
 - name: test_unwrap_text_before_between_and_after_blocks
@@ -209,6 +214,8 @@
   description: A response with text around a block yields the text, the compiled payload and the closing text, in that order.
   action: parse_response
   args:
+    history:
+      - {version: "v1.0", createSurface: {surfaceId: "s1", catalogId: "conformance/simplified"}}
     format: direct_json
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: |-

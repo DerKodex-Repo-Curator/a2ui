@@ -58,6 +58,11 @@
 # v1.0. A case states no version of its own: the version it runs under is the
 # one its catalog document declares.
 
+# `args.history` lists the messages the renderer received before the case
+# starts. A case that updates a surface it does not create puts the surface's
+# `createSurface` there, since a renderer rejects an update to a surface it
+# does not hold.
+
 - name: test_compile_json_message_list
   description: A well formed message list compiles to those messages.
   action: compile
@@ -98,6 +103,8 @@
   description: Trailing commas in a list and an object are dropped rather than failing the parse.
   action: compile
   args:
+    history:
+      - {version: "v1.0", createSurface: {surfaceId: "s1", catalogId: "conformance/simplified"}}
     format: direct_json
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: '[{"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Hello",},]}},]'
