@@ -565,6 +565,66 @@ void main() {
         throwsError<A2uiValidationError>(),
       );
     });
+
+    // A streamed updateComponents is checked a few components at a time, so
+    // these hold only if each check sees the components checked before.
+    group('raises on the chunk whose component', () {
+      Parser streaming() {
+        final Parser parser = const DirectJsonFormatFactory().createFormat([
+          basic,
+        ]).createParser();
+        parser.parseChunk(
+          '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": '
+          '"s", "catalogId": "${basic.id}"}}, {"version": "v1.0", '
+          '"updateComponents": {"surfaceId": "s", "components": [',
+        );
+        return parser;
+      }
+
+      test('repeats an id an earlier chunk gave', () {
+        final Parser parser = streaming();
+        expect(
+          parser.parseChunk(
+            '{"id": "root", "component": "Text", "text": "A"}, ',
+          ),
+          [isA<A2uiPart>()],
+        );
+        expect(
+          () => parser.parseChunk(
+            '{"id": "root", "component": "Text", "text": "B"}',
+          ),
+          throwsA(
+            isA<A2uiIntegrityError>().having(
+              (e) => e.message,
+              'message',
+              contains('Duplicate component ID: root'),
+            ),
+          ),
+        );
+      });
+
+      test('closes a cycle with a component an earlier chunk gave', () {
+        final Parser parser = streaming();
+        expect(
+          parser.parseChunk(
+            '{"id": "root", "component": "Column", "children": ["a"]}, ',
+          ),
+          [isA<A2uiPart>()],
+        );
+        expect(
+          () => parser.parseChunk(
+            '{"id": "a", "component": "Column", "children": ["root"]}',
+          ),
+          throwsA(
+            isA<A2uiIntegrityError>().having(
+              (e) => e.message,
+              'message',
+              contains('Circular reference'),
+            ),
+          ),
+        );
+      });
+    });
   });
 
   group('direct JSON across catalogs', () {

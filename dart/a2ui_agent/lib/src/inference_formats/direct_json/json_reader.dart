@@ -54,22 +54,64 @@ typedef PartialMessage = ({Object? message, bool closed});
 /// that have closed: an item still arriving is left out of the list rather
 /// than healed.
 ///
+/// Given a [cache] that an earlier read of a shorter start of the same
+/// payload filled, a list or map that closed in that read is taken from it
+/// rather than read again, as the same object, so a caller must not change
+/// it.
+///
 /// Returns no messages if [text] cannot be the start of a JSON document.
 List<PartialMessage> readPartialMessages(
   String text,
   Set<String> progressiveKeys, {
   Set<String> wholeItemKeys = const {},
+  PartialReadCache? cache,
 }) {
+  cache?._extend(text);
   try {
-    return _Reader(text, progressiveKeys, wholeItemKeys).messages();
+    return _Reader(
+      text,
+      progressiveKeys,
+      wholeItemKeys,
+      cache?._closed,
+    ).messages();
   } on FormatException {
     final String straight = _straightenQuotes(text);
     if (straight == text) return const [];
     try {
-      return _Reader(straight, progressiveKeys, wholeItemKeys).messages();
+      return _Reader(
+        straight,
+        progressiveKeys,
+        wholeItemKeys,
+        cache?._closedStraight,
+      ).messages();
     } on FormatException {
       return const [];
     }
+  }
+}
+
+/// The lists and maps that closed in the reads of a payload as it arrives,
+/// so that each read of a longer start of it reads only what the earlier
+/// ones left open.
+class PartialReadCache {
+  /// The text of the last read.
+  String _text = '';
+
+  /// Each list or map that closed, by the offset of its opening bracket,
+  /// with the offset after its closing one.
+  final Map<int, (Object?, int)> _closed = {};
+
+  /// The same for the text with curly quotes straightened, which has the
+  /// same offsets.
+  final Map<int, (Object?, int)> _closedStraight = {};
+
+  /// Keeps what was read only if [text] extends the text of the last read.
+  void _extend(String text) {
+    if (!text.startsWith(_text)) {
+      _closed.clear();
+      _closedStraight.clear();
+    }
+    _text = text;
   }
 }
 
@@ -85,7 +127,12 @@ class _Unfinished implements Exception {
 }
 
 class _Reader {
-  _Reader(this.text, this.progressiveKeys, [this.wholeItemKeys = const {}]);
+  _Reader(
+    this.text,
+    this.progressiveKeys, [
+    this.wholeItemKeys = const {},
+    this._closedValues,
+  ]);
 
   final String text;
 
@@ -95,6 +142,10 @@ class _Reader {
 
   /// The keys whose list value holds only the items that have closed.
   final Set<String> wholeItemKeys;
+
+  /// The lists and maps of [text] that closed in an earlier read, as
+  /// [PartialReadCache] keeps them, or null.
+  final Map<int, (Object?, int)>? _closedValues;
 
   int _i = 0;
 
@@ -184,7 +235,27 @@ class _Reader {
     _fail("unexpected character '$c'");
   }
 
-  Map<String, Object?> _object() {
+  Map<String, Object?> _object() => _closedOr(_readObject);
+
+  /// Reads a list or map through [read], unless [_closedValues] holds the
+  /// one that starts here, and adds it there if it closes.
+  T _closedOr<T>(T Function() read) {
+    final Map<int, (Object?, int)>? closedValues = _closedValues;
+    if (closedValues == null) return read();
+    final int start = _i;
+    if (closedValues[start] case (final Object? value, final int end)) {
+      _i = end;
+      return value as T;
+    }
+    final bool cutBefore = _cut;
+    _cut = false;
+    final T value = read();
+    if (!_cut) closedValues[start] = (value, _i);
+    _cut = cutBefore || _cut;
+    return value;
+  }
+
+  Map<String, Object?> _readObject() {
     _i++;
     final map = <String, Object?>{};
     while (true) {
@@ -217,7 +288,10 @@ class _Reader {
 
   /// Reads a list. When [wholeItems] is true, an item the text ends in is
   /// left out rather than healed.
-  List<Object?> _array({bool wholeItems = false}) {
+  List<Object?> _array({bool wholeItems = false}) =>
+      _closedOr(() => _readArray(wholeItems: wholeItems));
+
+  List<Object?> _readArray({required bool wholeItems}) {
     _i++;
     final list = <Object?>[];
     while (true) {

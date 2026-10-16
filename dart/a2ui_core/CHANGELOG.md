@@ -39,6 +39,9 @@
 - Added `PayloadValidator.validateFunctionCall`, which checks a function call
   written on its own and the calls nested in it, and made
   `PayloadValidator.validateFunctionArgs` public.
+- Exported `checkDuplicateComponentIds`, the check `MessageProcessor` runs on
+  each batch of components, for an agent that checks one message's
+  components in several batches as they stream.
 - Added `AgentToRendererMessage.typesFor`, the message types an agent may
   send in a protocol version.
 - `A2uiRendererCapabilities.fromJson` reads an inline catalog that states no
