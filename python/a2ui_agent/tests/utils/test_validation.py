@@ -304,6 +304,79 @@ def test_updated_surface_that_no_catalog_defines_is_checked_against_the_first():
         validate_payload(catalogs, [_update(*components)])
 
 
+def _sized_text_catalog(catalog_id: str, size_type: str) -> CatalogApi:
+    """Returns a catalog whose Text has a `size` of the given JSON type."""
+    return Catalog.from_json(
+        {
+            "catalogId": catalog_id,
+            "components": {
+                "Text": {
+                    "type": "object",
+                    "properties": {
+                        "component": {"const": "Text"},
+                        "text": {"type": "string"},
+                        "size": {"type": size_type},
+                    },
+                    "required": ["component", "text"],
+                }
+            },
+        },
+        protocol_version="0.9",
+    )
+
+
+def test_updated_surface_catalog_must_accept_every_update_to_the_surface():
+    # Both catalogs accept the first update, and only "b" accepts the second,
+    # so the surface is assumed on "b".
+    catalogs = [_sized_text_catalog("a", "string"), _sized_text_catalog("b", "number")]
+
+    validate_payload(
+        catalogs,
+        [
+            _update({"id": "t", "component": "Text", "text": "Hi"}),
+            _update({"id": "t", "component": "Text", "text": "Hi", "size": 12}),
+        ],
+    )
+
+
+def test_updated_surface_reports_the_first_catalog_error_when_none_accepts_all():
+    catalogs = [_sized_text_catalog("a", "string"), _sized_text_catalog("b", "number")]
+
+    with pytest.raises(A2uiValidationError, match="components.t.size"):
+        validate_payload(
+            catalogs,
+            [
+                _update({"id": "t", "component": "Text", "text": "Hi", "size": 12}),
+                _update({"id": "t", "component": "Text", "text": "Hi", "size": "big"}),
+            ],
+        )
+
+
+def test_surface_deleted_earlier_in_the_payload_is_not_assumed_again():
+    with pytest.raises(A2uiValidationError, match="not found"):
+        validate_payload(
+            [_BASIC],
+            [
+                _create(_BASIC.catalog_id),
+                _update(_COLUMN, _TEXT),
+                {"version": "v0.9", "deleteSurface": {"surfaceId": "s"}},
+                _update(_TEXT),
+            ],
+        )
+
+
+def test_surface_recreated_after_a_delete_in_the_payload_is_accepted():
+    validate_payload(
+        [_BASIC],
+        [
+            _update(_TEXT),
+            {"version": "v0.9", "deleteSurface": {"surfaceId": "s"}},
+            _create(_BASIC.catalog_id),
+            _update(_COLUMN, _TEXT),
+        ],
+    )
+
+
 def test_component_that_names_its_catalog_does_not_choose_the_surface_catalog():
     catalogs = [
         _catalog("a", "Text", protocol_version="1.0"),

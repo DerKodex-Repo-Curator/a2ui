@@ -234,8 +234,8 @@ class RendererState:
             _check_message(message, index, self._protocol_version)
         touched: dict[str, None] = {}
         with self._frame():
-            for message in messages:
-                surface_id = self._apply_message(message, messages)
+            for index in range(len(messages)):
+                surface_id = self._apply_message(messages, index)
                 if surface_id is not None:
                     touched[surface_id] = None
         return list(touched)
@@ -354,12 +354,9 @@ class RendererState:
         with _as_validation_error():
             self._processor.process_messages(messages)
 
-    def _apply_message(
-        self,
-        message: dict[str, Any],
-        payload: list[dict[str, Any]],
-    ) -> str | None:
-        """Applies one message and returns the surface it targets, if any."""
+    def _apply_message(self, payload: list[dict[str, Any]], index: int) -> str | None:
+        """Applies the message at an index and returns the surface it targets."""
+        message = payload[index]
         surface_id, creates = _target(message)
         if surface_id is None:
             self._process([message])
@@ -382,11 +379,10 @@ class RendererState:
             self._assumed.discard(surface_id)
             self._pending.pop(surface_id, None)
             self._changed.pop(surface_id, None)
-        elif model.get_surface(surface_id) is None and (
-            self._protocol_version is ProtocolVersion.V0_8
-            or self._assumes_unknown_surfaces
+        elif model.get_surface(surface_id) is None and self._assumes(
+            surface_id, payload, index
         ):
-            self._assume_surface(surface_id, message, payload)
+            self._assume_surface(surface_id, payload, index)
         else:
             self._process([message])
             pending = self._pending.get(surface_id)
@@ -396,28 +392,49 @@ class RendererState:
             self._changed.setdefault(surface_id, set()).update(_component_ids(message))
         return surface_id
 
+    def _assumes(
+        self, surface_id: str, payload: list[dict[str, Any]], index: int
+    ) -> bool:
+        """Whether an update to a surface the state lacks assumes the surface.
+
+        A v0.8 renderer buffers updates to a surface until its
+        `beginRendering`, even after the surface is deleted. A payload state
+        assumes a surface the payload never named before, but not one that an
+        earlier message of the payload deleted: a renderer rejects updates to
+        it.
+        """
+        if self._protocol_version is ProtocolVersion.V0_8:
+            return True
+        return self._assumes_unknown_surfaces and all(
+            _target(m)[0] != surface_id for m in payload[:index]
+        )
+
     def _assume_surface(
-        self,
-        surface_id: str,
-        message: dict[str, Any],
-        payload: list[dict[str, Any]],
+        self, surface_id: str, payload: list[dict[str, Any]], index: int
     ) -> None:
         """Creates a placeholder for an unknown surface and applies the update.
 
-        The surface is created on each catalog that defines every component the
-        payload adds to it, until one accepts the update. If none does, the
-        error from the first is raised.
+        The updates to the surface are the message at `index` and the messages
+        after it that update the surface, up to one that creates or deletes
+        it. The surface is created on each catalog that defines every
+        component those updates add, until one accepts all of them, so a later
+        update can rule out a catalog that the first one fits. If none does,
+        the error from the first is raised. Only the first update is applied
+        here; the others are applied in turn.
         """
-        candidates = self._placeholder_catalogs(surface_id, payload)
+        message = payload[index]
+        updates = _surface_updates(surface_id, payload, index)
         errors: list[A2uiValidationError] = []
-        for catalog in candidates:
+        for catalog in self._placeholder_catalogs(surface_id, updates):
             placeholder = self._placeholder(surface_id, catalog, message)
             try:
-                self._process([placeholder, message])
+                self._process([placeholder, *updates])
             except A2uiValidationError as e:
-                self._processor.model.delete_surface(surface_id)
                 errors.append(e)
                 continue
+            finally:
+                self._processor.model.delete_surface(surface_id)
+            self._process([placeholder, message])
             self._assumed.add(surface_id)
             if self._protocol_version is ProtocolVersion.V0_8:
                 self._pending[surface_id] = [message]
@@ -425,12 +442,15 @@ class RendererState:
         raise errors[0]
 
     def _placeholder_catalogs(
-        self, surface_id: str, payload: list[dict[str, Any]]
+        self, surface_id: str, updates: list[dict[str, Any]]
     ) -> list[CatalogApi]:
-        """The catalogs to try a placeholder for an unknown surface on, in order."""
-        component_types = _component_types(
-            [m for m in payload if _target(m)[0] == surface_id]
-        )
+        """The catalogs to try a placeholder for an unknown surface on, in order.
+
+        Args:
+          surface_id: The surface.
+          updates: The updates to the surface that the placeholder must accept.
+        """
+        component_types = _component_types(updates)
         return [
             catalog
             for catalog in self._catalogs
@@ -463,8 +483,9 @@ class _PayloadState(RendererState):
 
     A surface the payload updates without creating is assumed to exist,
     holding components the check never saw. The state creates an empty
-    placeholder for it, on the first catalog that defines the update's
-    components and accepts it. Each component is still checked against that
+    placeholder for it, on the first catalog that defines the components of
+    the payload's updates to it and accepts all of them. A surface that an
+    earlier message of the payload deleted is not assumed again. Each component is still checked against that
     catalog, but the surface's tree is not: references to components outside
     the payload, a missing root and unreachable components are accepted there.
     A surface whose catalog the caller knows is created on that catalog only.
@@ -481,11 +502,11 @@ class _PayloadState(RendererState):
         self._surface_catalog_ids = dict(surface_catalog_ids or {})
 
     def _placeholder_catalogs(
-        self, surface_id: str, payload: list[dict[str, Any]]
+        self, surface_id: str, updates: list[dict[str, Any]]
     ) -> list[CatalogApi]:
         catalog_id = self._surface_catalog_ids.get(surface_id)
         if catalog_id is None:
-            return super()._placeholder_catalogs(surface_id, payload)
+            return super()._placeholder_catalogs(surface_id, updates)
         candidates = [c for c in self.catalogs if c.catalog_id == catalog_id]
         if not candidates:
             raise A2uiValidationError(
@@ -678,6 +699,24 @@ def _target(message: Mapping[str, Any]) -> tuple[str | None, bool]:
     if isinstance(body, Mapping) and isinstance(body.get("surfaceId"), str):
         return body["surfaceId"], action in _CREATE_ACTIONS
     return None, False
+
+
+def _surface_updates(
+    surface_id: str, payload: list[dict[str, Any]], index: int
+) -> list[dict[str, Any]]:
+    """The updates to a surface from an index of a payload on.
+
+    They end before the next message that creates or deletes the surface.
+    """
+    updates: list[dict[str, Any]] = []
+    for message in payload[index:]:
+        target, creates = _target(message)
+        if target != surface_id:
+            continue
+        if updates and (creates or "deleteSurface" in message):
+            break
+        updates.append(message)
+    return updates
 
 
 def _component_lists(message: Mapping[str, Any]) -> list[tuple[str, list[Any]]]:
