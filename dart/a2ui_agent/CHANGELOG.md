@@ -59,7 +59,8 @@
 - The Express prompt gives each function's description.
 - Direct JSON `compile` checks each surface the payload creates whole: no
   message before its `createSurface`, no missing or unreachable component,
-  and no cycle, which streaming holds back.
+  and no cycle. `parseChunk` may emit a block's messages before these checks
+  reject the block.
 - A streamed string cut inside an escaped surrogate pair is cut before the
   pair rather than healed with U+FFFD.
 - The Express compiler rejects an inline component whose id another
