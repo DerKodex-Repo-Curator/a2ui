@@ -145,6 +145,45 @@ def test_create_surface_streamed_in_pieces_is_emitted_once():
     }]
 
 
+def test_chunk_that_fails_after_applying_a_block_leaves_the_state_unchanged():
+    """A chunk that raises returns no parts, so the state keeps none of it."""
+    catalog = BasicCatalog("v0.9")
+    parser = DirectJsonParser([catalog])
+    state = RendererState([catalog])
+
+    def block(surface_id, text_component):
+        return (
+            A2UI_OPEN_TAG
+            + json.dumps([
+                {
+                    "version": "v0.9",
+                    "createSurface": {
+                        "surfaceId": surface_id,
+                        "catalogId": catalog.catalog_id,
+                    },
+                },
+                {
+                    "version": "v0.9",
+                    "updateComponents": {
+                        "surfaceId": surface_id,
+                        "components": [{"id": "root", **text_component}],
+                    },
+                },
+            ])
+            + A2UI_CLOSE_TAG
+        )
+
+    stream = parser.open_stream(state=state)
+    chunk = block("s1", {"component": "Text", "text": "Hi"}) + block(
+        "s2", {"component": "Text"}
+    )
+
+    with pytest.raises(A2uiValidationError):
+        stream.feed(chunk)
+
+    assert state.surface_ids == []
+
+
 def test_fenced_block_streamed_one_character_at_a_time_is_read_whole():
     """A Markdown fence that arrives in pieces is stripped, not read as JSON."""
     catalog = BasicCatalog("v0.9")

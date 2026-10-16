@@ -98,7 +98,11 @@ class DirectJsonResponseStream(ResponseStream):
         if self._closed:
             raise ValueError("The response stream is closed.")
         try:
-            return self._feed(chunk)
+            # A chunk may apply messages and then fail, for example in a second
+            # block, before its parts are returned. The transaction undoes
+            # them, so the state holds only what was emitted.
+            with self._state.transaction():
+                return self._feed(chunk)
         except BaseException:
             self._closed = True
             raise
