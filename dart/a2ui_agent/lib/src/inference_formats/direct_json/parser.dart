@@ -236,6 +236,10 @@ class DirectJsonParser extends Parser {
   /// The messages of the current block emitted so far, as JSON.
   final List<String> _emitted = [];
 
+  /// The messages of the current block read so far, as JSON, when they last
+  /// passed the checks.
+  String? _checked;
+
   /// Values of [progressiveKeys] are shown while they grow; any other
   /// unfinished value is held back until it is complete.
   ///
@@ -296,6 +300,7 @@ class DirectJsonParser extends Parser {
         _inBlock = false;
         _block = '';
         _emitted.clear();
+        _checked = null;
         continue;
       }
       final Match? open = _openTag.firstMatch(input);
@@ -338,6 +343,15 @@ class DirectJsonParser extends Parser {
       wholeItemKeys: _buffersComponents ? const {'components'} : const {},
     );
     if (envelopes.isEmpty) return;
+    // Most chunks change no message read so far, such as one inside a
+    // component held until it closes. Checking the same messages again
+    // would emit nothing new, and replaying them costs more than the rest
+    // of the chunk.
+    final String read = jsonEncode([
+      for (final (:Object? message, :bool closed) in envelopes)
+        [message, closed],
+    ]);
+    if (read == _checked) return;
     // Read outside the loop, so that catalogs it cannot read throw rather
     // than pass for a message that has not arrived in full.
     final MessageReader reader = _reader;
@@ -364,6 +378,7 @@ class DirectJsonParser extends Parser {
     } finally {
       checker.dispose();
     }
+    _checked = read;
     _emitChanged(parts, ready);
   }
 

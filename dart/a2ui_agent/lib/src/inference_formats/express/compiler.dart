@@ -170,6 +170,9 @@ class ExpressCompiler {
           );
         case ExpressionStatement(value: final CallNode call)
             when _v1 && !_declaresComponent(call):
+          // A call before any surface line names the variables of the
+          // default surface, which the lines after it may assign.
+          current ??= _Surface(defaultSurfaceId, _surfaceHelper(null));
           operations.add(_StandaloneCall(call, current));
         case ExpressionStatement(value: CallNode(:final String name)):
           throw A2uiValidationError(
@@ -185,10 +188,10 @@ class ExpressCompiler {
             'An expression must be assigned to a variable or a data path.',
           );
         case AssignmentStatement():
-          if (current == null) {
-            current = _Surface(defaultSurfaceId, _surfaceHelper(null));
-            operations.add(current);
-          }
+          current ??= _Surface(defaultSurfaceId, _surfaceHelper(null));
+          // The default surface is created on its first assignment, even
+          // when a call before it named its variables.
+          if (!operations.contains(current)) operations.add(current);
           if (statement.isDataPath) {
             current.data.add((statement.target, statement.value));
           } else {
@@ -762,13 +765,22 @@ class _SurfaceCompiler {
 
   /// The arguments of [check], less the v1.0 `{catalogId: ...}` argument
   /// naming its catalog, and that catalog, or null.
+  ///
+  /// Throws [A2uiValidationError] if that argument's `catalogId` is not a
+  /// string literal.
   (List<ExpressNode>, String?) _checkArguments(CheckNode check) {
     if (!_v1) return (check.args, null);
     for (final (int index, ExpressNode arg) in check.args.indexed) {
       if (arg case MapNode(
-        entries: {'catalogId': LiteralNode(value: final String catalogId)},
+        entries: {'catalogId': final ExpressNode node},
       ) when arg.entries.length == 1) {
-        return ([...check.args]..removeAt(index), catalogId);
+        if (node case LiteralNode(value: final String catalogId)) {
+          return ([...check.args]..removeAt(index), catalogId);
+        }
+        throw A2uiValidationError(
+          "Argument 'catalogId' of ?${check.name}(...) must be a string "
+          'literal.',
+        );
       }
     }
     return (check.args, null);

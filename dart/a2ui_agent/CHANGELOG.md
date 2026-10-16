@@ -36,8 +36,10 @@
     written as a statement of its own compiles to `callRendererFunction`.
   - The Express prompt explains how to name a catalog, lists the functions
     the agent may call, and carries each catalog's `instructions`.
-  - A `callRendererFunction` may call only a function whose `allowedCallers`
-    lets the agent call it.
+  - `parseResponse` accepts a `callRendererFunction` only to a function
+    whose `allowedCallers` lets the agent call it and that needs no user
+    activation. A parser's `compile` and `parseChunk` check only the call's
+    arguments.
   - The direct JSON parser holds a streamed v1.0 component back until it
     closes; `bufferIncompleteComponents` applies only before v1.0.
 - Exported `ExpressFormat`, `ExpressPromptGenerator`, `ExpressParser`,

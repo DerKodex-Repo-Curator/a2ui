@@ -857,6 +857,25 @@ void main() {
       );
     });
 
+    test('lets a call before any surface line name a variable of the '
+        'default surface', () {
+      final List<Map<String, Object?>> messages = compile(
+        'formatString(greeting)\n'
+        'greeting = "Hello"\n'
+        'root = Text(greeting)',
+      );
+      expect(messages, hasLength(2));
+      expect(
+        ((messages.first['callRendererFunction']! as Map)['callFunction']!
+            as Map)['args'],
+        {'value': 'Hello'},
+      );
+      expect(
+        (messages.last['createSurface']! as Map)['surfaceId'],
+        'default_surface',
+      );
+    });
+
     test('rejects a component or an Event written on its own', () {
       expect(
         () => compile('Text("Hello")'),
@@ -1090,6 +1109,20 @@ void main() {
           'value': {'@path': '/name'},
         },
       });
+    });
+
+    test('rejects a check whose catalogId is not a string literal', () {
+      const field = r'root = TextField("Name", $/name, catalogId="';
+      expect(
+        () => compile('$field${basic.id}", [?required({catalogId: 3})])'),
+        throwsA(
+          isA<A2uiValidationError>().having(
+            (e) => e.message,
+            'message',
+            contains("Argument 'catalogId' of ?required(...)"),
+          ),
+        ),
+      );
     });
 
     test('rejects a surface line naming a catalog, and an Event naming '
