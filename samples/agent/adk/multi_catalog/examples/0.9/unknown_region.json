@@ -1,0 +1,38 @@
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "notes",
+      "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "notes",
+      "components": [
+        {
+          "id": "root",
+          "component": "Card",
+          "child": "notes-column"
+        },
+        {
+          "id": "notes-column",
+          "component": "Column",
+          "children": ["notes-title", "notes-body"]
+        },
+        {
+          "id": "notes-title",
+          "component": "Text",
+          "variant": "h3",
+          "text": "No data for [Region]"
+        },
+        {
+          "id": "notes-body",
+          "component": "Text",
+          "text": "I have sales metrics for [KnownRegions]. Which region would you like to see?"
+        }
+      ]
+    }
+  }
+]

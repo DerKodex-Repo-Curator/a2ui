@@ -1,0 +1,136 @@
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "metrics",
+      "catalogId": "https://a2ui.org/samples/agent/adk/multi_catalog/catalogs/0.9/dashboard_catalog.json"
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "metrics",
+      "components": [
+        {
+          "id": "root",
+          "component": "MetricGrid",
+          "children": ["revenue", "new-customers", "average-deal", "target", "pipeline"]
+        },
+        {
+          "id": "revenue",
+          "component": "StatCard",
+          "label": "Revenue",
+          "value": {"path": "/revenue"},
+          "caption": {"path": "/revenueChange"}
+        },
+        {
+          "id": "new-customers",
+          "component": "StatCard",
+          "label": "New customers",
+          "value": {"path": "/newCustomers"},
+          "caption": {"path": "/customersChange"}
+        },
+        {
+          "id": "average-deal",
+          "component": "StatCard",
+          "label": "Average deal",
+          "value": {"path": "/averageDeal"},
+          "caption": {"path": "/dealChange"}
+        },
+        {
+          "id": "target",
+          "component": "ProgressBar",
+          "label": "Quarterly target",
+          "percent": {"path": "/targetPercent"}
+        },
+        {
+          "id": "pipeline",
+          "component": "ProgressBar",
+          "label": "Pipeline coverage",
+          "percent": {"path": "/pipelinePercent"}
+        }
+      ]
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateDataModel": {
+      "surfaceId": "metrics",
+      "path": "/",
+      "value": {
+        "revenue": "[Revenue]",
+        "revenueChange": "[RevenueChange]",
+        "newCustomers": "[NewCustomers]",
+        "customersChange": "[CustomersChange]",
+        "averageDeal": "[AverageDeal]",
+        "dealChange": "[DealChange]",
+        "targetPercent": 0,
+        "pipelinePercent": 0
+      }
+    }
+  },
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "notes",
+      "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "notes",
+      "components": [
+        {
+          "id": "root",
+          "component": "Card",
+          "child": "notes-column"
+        },
+        {
+          "id": "notes-column",
+          "component": "Column",
+          "children": ["notes-title", "notes-body", "refresh-button"]
+        },
+        {
+          "id": "notes-title",
+          "component": "Text",
+          "variant": "h3",
+          "text": {"path": "/title"}
+        },
+        {
+          "id": "notes-body",
+          "component": "Text",
+          "text": {"path": "/highlights"}
+        },
+        {
+          "id": "refresh-label",
+          "component": "Text",
+          "text": "Refresh"
+        },
+        {
+          "id": "refresh-button",
+          "component": "Button",
+          "child": "refresh-label",
+          "action": {
+            "event": {
+              "name": "refresh_dashboard",
+              "context": {"region": {"path": "/region"}}
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateDataModel": {
+      "surfaceId": "notes",
+      "path": "/",
+      "value": {
+        "title": "[Region] sales, [Quarter]",
+        "highlights": "[Highlights]",
+        "region": "[Region]"
+      }
+    }
+  }
+]

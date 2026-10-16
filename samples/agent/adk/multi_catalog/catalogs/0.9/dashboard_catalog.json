@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/samples/agent/adk/multi_catalog/catalogs/0.9/dashboard_catalog.json",
+  "catalogId": "https://a2ui.org/samples/agent/adk/multi_catalog/catalogs/0.9/dashboard_catalog.json",
+  "title": "Dashboard catalog (v0.9)",
+  "description": "Metric components for the multi_catalog sample. It is used together with the basic catalog: a dashboard surface uses this catalog, and a surface for prose and actions uses the basic one.",
+  "components": {
+    "MetricGrid": {
+      "type": "object",
+      "description": "Lays out metric components in a responsive grid.",
+      "allOf": [
+        {"$ref": "common_types.json#/$defs/ComponentCommon"},
+        {
+          "type": "object",
+          "properties": {
+            "component": {"const": "MetricGrid"},
+            "children": {"$ref": "common_types.json#/$defs/ChildList"}
+          },
+          "required": ["component", "children"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "StatCard": {
+      "type": "object",
+      "description": "Shows one headline number with a label, and optionally a short caption such as the change from the previous period.",
+      "allOf": [
+        {"$ref": "common_types.json#/$defs/ComponentCommon"},
+        {
+          "type": "object",
+          "properties": {
+            "component": {"const": "StatCard"},
+            "label": {
+              "$ref": "common_types.json#/$defs/DynamicString",
+              "description": "What the number measures, for example 'Revenue'."
+            },
+            "value": {
+              "$ref": "common_types.json#/$defs/DynamicString",
+              "description": "The formatted number, for example '$1.2M'."
+            },
+            "caption": {
+              "$ref": "common_types.json#/$defs/DynamicString",
+              "description": "Optional context, for example '+12% vs Q2'."
+            }
+          },
+          "required": ["component", "label", "value"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "ProgressBar": {
+      "type": "object",
+      "description": "Shows progress toward a goal as a horizontal bar.",
+      "allOf": [
+        {"$ref": "common_types.json#/$defs/ComponentCommon"},
+        {
+          "type": "object",
+          "properties": {
+            "component": {"const": "ProgressBar"},
+            "label": {
+              "$ref": "common_types.json#/$defs/DynamicString",
+              "description": "What the bar tracks, for example 'Quarterly target'."
+            },
+            "percent": {
+              "$ref": "common_types.json#/$defs/DynamicNumber",
+              "description": "Progress from 0 to 100."
+            }
+          },
+          "required": ["component", "label", "percent"]
+        }
+      ],
+      "unevaluatedProperties": false
+    }
+  },
+  "$defs": {
+    "anyComponent": {
+      "oneOf": [
+        {"$ref": "#/components/MetricGrid"},
+        {"$ref": "#/components/StatCard"},
+        {"$ref": "#/components/ProgressBar"}
+      ],
+      "discriminator": {"propertyName": "component"}
+    }
+  }
+}
