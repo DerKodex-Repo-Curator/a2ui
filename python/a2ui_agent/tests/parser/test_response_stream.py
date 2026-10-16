@@ -19,6 +19,8 @@ what each chunk yields. These tests cover what it cannot state: catalogs
 built in code, and several surfaces and catalogs in one stream.
 """
 
+import json
+
 import pytest
 
 from a2ui.core import A2uiValidationError, Catalog
@@ -141,6 +143,21 @@ def test_create_surface_streamed_in_pieces_is_emitted_once():
             "theme": {"primaryColor": "#FF0000"},
         },
     }]
+
+
+def test_fenced_block_streamed_one_character_at_a_time_is_read_whole():
+    """A Markdown fence that arrives in pieces is stripped, not read as JSON."""
+    catalog = BasicCatalog("v0.9")
+    parser = DirectJsonParser([catalog])
+    create = {
+        "version": "v0.9",
+        "createSurface": {"surfaceId": "s1", "catalogId": catalog.catalog_id},
+    }
+    response = (
+        A2UI_OPEN_TAG + "```json\n[" + json.dumps(create) + "]\n```" + A2UI_CLOSE_TAG
+    )
+
+    assert _stream(parser, list(response)) == [create]
 
 
 def test_v10_surfaces_use_their_own_catalogs(basic_catalog_v10, custom_catalog_v10):

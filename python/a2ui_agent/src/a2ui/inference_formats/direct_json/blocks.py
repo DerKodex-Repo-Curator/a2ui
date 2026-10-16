@@ -25,8 +25,9 @@ OPEN_TAG = "<a2ui-json>"
 CLOSE_TAG = "</a2ui-json>"
 OPEN_TAG_RE = re.compile(r"<a2ui-json(?:\s[^>]*)?>", re.IGNORECASE)
 CLOSE_TAG_RE = re.compile(r"</a2ui-json\s*>", re.IGNORECASE)
-_OPEN_TAG_START_RE = re.compile(r"^<a2ui-json\s[^>]*$", re.IGNORECASE)
-_CLOSE_TAG_START_RE = re.compile(r"^</a2ui-json\s*$", re.IGNORECASE)
+# The start of a tag that runs to the end of the text, matched at a position.
+_OPEN_TAG_START_RE = re.compile(r"<a2ui-json\s[^>]*$", re.IGNORECASE)
+_CLOSE_TAG_START_RE = re.compile(r"</a2ui-json\s*$", re.IGNORECASE)
 _LEADING_FENCE_RE = re.compile(r"^```[a-zA-Z-]*\s*")
 _TRAILING_FENCE_RE = re.compile(r"\s*```[a-zA-Z-]*$")
 _STREAM_TRAILING_FENCE_RE = re.compile(r"\s*`{1,3}[a-zA-Z-]*\s*$")
@@ -36,11 +37,15 @@ def possible_tag_start(text: str) -> int:
     """Returns where a tail of `text` could start an open tag, else its length."""
     idx = text.find("<")
     while idx >= 0:
-        rest = text[idx:]
-        if "<a2ui-json".startswith(rest.lower()) or _OPEN_TAG_START_RE.match(rest):
+        if _is_tag_prefix(text, idx, OPEN_TAG) or _OPEN_TAG_START_RE.match(text, idx):
             return idx
         idx = text.find("<", idx + 1)
     return len(text)
+
+
+def _is_tag_prefix(text: str, idx: int, tag: str) -> bool:
+    """Whether the rest of `text` from `idx` is a proper prefix of `tag`."""
+    return len(text) - idx < len(tag) and tag.startswith(text[idx:].lower())
 
 
 def scan_block(content: str, start: int) -> tuple[int | None, int]:
@@ -69,8 +74,9 @@ def scan_block(content: str, start: int) -> tuple[int | None, int]:
         elif c == "<":
             if CLOSE_TAG_RE.match(content, i) is not None:
                 return i, i - start
-            rest = content[i:].lower()
-            if CLOSE_TAG.startswith(rest) or _CLOSE_TAG_START_RE.match(rest):
+            if _is_tag_prefix(content, i, CLOSE_TAG) or _CLOSE_TAG_START_RE.match(
+                content, i
+            ):
                 return None, i - start
         i += 1
     return None, n - start
@@ -94,7 +100,10 @@ def clean(text: str) -> str:
 def clean_start(block: str) -> str:
     """Strips the opening fence and a trailing fence from a block still arriving."""
     text = block.lstrip()
-    if text.startswith("`"):
+    if "```".startswith(text):
+        # Nothing has arrived yet but the start of a fence.
+        return ""
+    if text.startswith("```"):
         newline = text.find("\n")
         if newline < 0:
             return ""
