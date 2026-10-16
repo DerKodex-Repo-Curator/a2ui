@@ -101,6 +101,14 @@ describe('DirectJsonResponseStream', () => {
     ]);
   });
 
+  it('strips a Markdown fence that arrives one character at a time', () => {
+    const parser = new DirectJsonParser([basicV09]);
+    const create = {version: 'v0.9', createSurface: {surfaceId: 's1', catalogId: basicV09.id}};
+    const response = `${OPEN}\`\`\`json\n[${JSON.stringify(create)}]\n\`\`\`${CLOSE}`;
+
+    expect(stream(parser, [...response])).toEqual([create]);
+  });
+
   it('checks each v1.0 surface against the catalog it was created with', () => {
     const parser = new DirectJsonParser([basicV10, customV10]);
 

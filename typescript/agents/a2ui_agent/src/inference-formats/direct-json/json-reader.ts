@@ -190,7 +190,9 @@ class Reader {
         this.i += word.length;
         return val;
       }
-      if (this.partial && word.startsWith(this.text.slice(this.i))) this.end();
+      if (this.partial && word.startsWith(this.text.slice(this.i, this.i + word.length))) {
+        this.end();
+      }
     }
     return this.fail(`unexpected character '${c}'`);
   }

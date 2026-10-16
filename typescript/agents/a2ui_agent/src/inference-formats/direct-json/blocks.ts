@@ -26,8 +26,9 @@ export const CLOSE_TAG = A2UI_CLOSE_TAG;
 
 const OPEN_TAG_SOURCE = '<a2ui-json(?:\\s[^>]*)?>';
 const CLOSE_TAG_SOURCE = '<\\/a2ui-json\\s*>';
-const OPEN_TAG_START_RE = /^<a2ui-json\s[^>]*$/i;
-const CLOSE_TAG_START_RE = /^<\/a2ui-json\s*$/i;
+// The start of a tag that runs to the end of the text, matched at `lastIndex`.
+const OPEN_TAG_START_RE = /<a2ui-json\s[^>]*$/iy;
+const CLOSE_TAG_START_RE = /<\/a2ui-json\s*$/iy;
 const LEADING_FENCE_RE = /^```[a-zA-Z-]*\s*/;
 const TRAILING_FENCE_RE = /\s*```[a-zA-Z-]*$/;
 const STREAM_TRAILING_FENCE_RE = /\s*`{1,3}[a-zA-Z-]*\s*$/;
@@ -58,13 +59,23 @@ export function matchCloseTag(text: string, at: number): number | undefined {
 export function possibleTagStart(text: string): number {
   let idx = text.indexOf('<');
   while (idx >= 0) {
-    const rest = text.slice(idx);
-    if ('<a2ui-json'.startsWith(rest.toLowerCase()) || OPEN_TAG_START_RE.test(rest)) {
+    if (isTagPrefix(text, idx, OPEN_TAG) || matchesAt(OPEN_TAG_START_RE, text, idx)) {
       return idx;
     }
     idx = text.indexOf('<', idx + 1);
   }
   return text.length;
+}
+
+/** Whether the rest of `text` from `idx` is a proper prefix of `tag`. */
+function isTagPrefix(text: string, idx: number, tag: string): boolean {
+  return text.length - idx < tag.length && tag.startsWith(text.slice(idx).toLowerCase());
+}
+
+/** Whether the sticky `re` matches `text` at `idx`. */
+function matchesAt(re: RegExp, text: string, idx: number): boolean {
+  re.lastIndex = idx;
+  return re.test(text);
 }
 
 /**
@@ -92,8 +103,7 @@ export function scanBlock(content: string, start: number): [number | undefined, 
       inString = true;
     } else if (c === '<') {
       if (matchCloseTag(content, i) !== undefined) return [i, i - start];
-      const rest = content.slice(i).toLowerCase();
-      if (CLOSE_TAG.startsWith(rest) || CLOSE_TAG_START_RE.test(rest)) {
+      if (isTagPrefix(content, i, CLOSE_TAG) || matchesAt(CLOSE_TAG_START_RE, content, i)) {
         return [undefined, i - start];
       }
     }
@@ -116,7 +126,9 @@ export function clean(text: string): string {
 /** Strips the opening fence and a trailing fence from a block still arriving. */
 export function cleanStart(block: string): string {
   let text = block.trimStart();
-  if (text.startsWith('`')) {
+  // Nothing has arrived yet but the start of a fence.
+  if ('```'.startsWith(text)) return '';
+  if (text.startsWith('```')) {
     const newline = text.indexOf('\n');
     if (newline < 0) return '';
     text = text.slice(newline + 1);
