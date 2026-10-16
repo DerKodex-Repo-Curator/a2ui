@@ -78,11 +78,13 @@ Notes:
   into `processor.prompt_snippet`.
 - `A2uiRequestProcessor(catalogs)` can also be created directly from catalogs,
   for example in a script that prints the prompt for a set of catalogs.
-- The provided catalogs must be freestanding, i.e. they should not reference any
-  external schemas or components, except for the common types.
-- If you have a modular catalog that references other catalogs, refer
-  to [Freestanding Catalogs](../../docs/public/concepts/catalogs.md#freestanding-catalogs)
-  for more information.
+- A catalog may reference the protocol's common types and its peer catalogs,
+  for example to reuse a component or a property of another catalog with a
+  `$ref`. The SDK resolves these references against the other catalogs it
+  holds: for `A2uiGenerator`, every registered catalog, including ones the
+  renderer doesn't support; for `A2uiRequestProcessor(catalogs)`, the catalogs
+  it is given. A reference that matches no catalog is a catalog error. See
+  [Catalog Linking](../../docs/public/concepts/catalogs.md#catalog-linking).
 - You can define one `A2uiGenerator` for each protocol version and select the
   one for the version that the request activates.
   See [Multiple Version Support](#3-multiple-version-support) for more details.
