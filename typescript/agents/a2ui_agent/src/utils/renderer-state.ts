@@ -240,11 +240,12 @@ export class RendererState {
    * error propagates. `fn` must be synchronous: a transaction cannot span an `await`.
    *
    * @returns What `fn` returns.
-   * @throws {TypeError} If `fn` returns a promise. The state is restored first.
+   * @throws {TypeError} If `fn` returns a promise, which the type of `fn` rejects at compile
+   *   time. The state is restored first.
    */
-  transaction<T>(fn: (state: this) => T): T {
+  transaction<T>(fn: (state: this) => T extends PromiseLike<unknown> ? never : T): T {
     return this.frame(() => {
-      const result = fn(this);
+      const result: T = fn(this);
       if (isPromiseLike(result)) {
         throw new TypeError('A renderer state transaction must be synchronous.');
       }

@@ -214,6 +214,7 @@ describe('RendererState', () => {
     const state = new RendererState([BASIC]);
 
     expect(() =>
+      // @ts-expect-error The type of `fn` rejects a promise; JavaScript callers hit the runtime check.
       state.transaction(async () => {
         state.apply(CREATE);
       }),
