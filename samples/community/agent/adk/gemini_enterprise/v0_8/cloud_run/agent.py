@@ -238,15 +238,13 @@ class ContactAgent:
             final_response_content = "".join(full_content_list)
 
             if not final_response_content:
+                # A retry would add a second user turn with no model turn
+                # between them, so the agent stops here.
                 logger.warning(
                     "--- ContactAgent.fetch_response: Received no final response"
                     f" content from runner (Attempt {attempt}). ---"
                 )
-                current_query_text = (
-                    "I received no response. Please retry the original request:"
-                    f" '{query}'"
-                )
-                continue
+                break
 
             if processor is None:
                 return _text_parts(final_response_content)
@@ -288,7 +286,7 @@ class ContactAgent:
             return final_parts
 
         logger.error(
-            "--- ContactAgent.fetch_response: Max retries exhausted. Sending"
+            "--- ContactAgent.fetch_response: No valid response. Sending"
             " text-only error. ---"
         )
         return _text_parts(
