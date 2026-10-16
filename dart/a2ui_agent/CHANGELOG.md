@@ -57,6 +57,17 @@
 - The Express decompiler rejects a check condition with extra fields rather
   than dropping them.
 - The Express prompt gives each function's description.
+- Direct JSON `compile` checks each surface the payload creates whole: no
+  message before its `createSurface`, no missing or unreachable component,
+  and no cycle, which streaming holds back.
+- A streamed string cut inside an escaped surrogate pair is cut before the
+  pair rather than healed with U+FFFD.
+- The Express compiler rejects an inline component whose id another
+  component has, rather than renaming it.
+- The Express decompiler writes a single check without brackets, a multiline
+  string with backslashes as a raw triple-quoted string, and an
+  `updateDataModel` below the root as assignments at its path.
+- A check's default message has no trailing period, as in the other SDKs.
 - Bump `a2ui_core` dependency to `^0.3.0`.
 - The Direct JSON prompt lists `description` after `type` in the
   agent-to-renderer and `common_types` schemas it embeds, following the

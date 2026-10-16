@@ -362,9 +362,18 @@ void main() {
           {'id': 'root', 'component': 'Text', 'text': 'x'},
         ]),
       ],
-      'an update below the root of the data model': [
+      'an update of an item of a list in the data model': [
         {
-          'updateDataModel': {'surfaceId': 's', 'path': '/name', 'value': 'x'},
+          'updateDataModel': {
+            'surfaceId': 's',
+            'path': '/items/0',
+            'value': 'x',
+          },
+        },
+      ],
+      'a removal below the root of the data model': [
+        {
+          'updateDataModel': {'surfaceId': 's', 'path': '/name'},
         },
       ],
       'a data model key that is not a path segment': [

@@ -239,19 +239,25 @@ class ExpressDecompiler {
     UpdateDataModelMessage message,
     Map<String, String?> created,
   ) {
-    if (!_isWholeModel(message)) {
+    final String? path = message.path;
+    final Object? value = message.value;
+    final bool atRoot = path == null || path == '/';
+    if (atRoot ? value is! Map : value == null || !_isDataPath(path)) {
       throw A2uiValidationError(
-        "The update of path '${message.path}' in the data model of surface "
-        "'${message.surfaceId}' has no Express notation. Express writes the "
-        'whole data model, from its root, and cannot remove it.',
+        "The update of path '${path ?? '/'}' in the data model of surface "
+        "'${message.surfaceId}' has no Express notation. Express assigns a "
+        'value to a data path, and cannot remove one or replace the root '
+        'with anything but a map.',
       );
     }
+    // Below the root the value is assigned at its path, which compiles to an
+    // update of the root holding it.
     return [
       _surfaceLine(
         message.surfaceId,
         created[message.surfaceId] ?? catalogs.first.id,
       ),
-      ..._dataLines(message.value! as Map),
+      ..._dataLines(value, at: atRoot ? '' : path),
     ].join('\n');
   }
 
@@ -373,8 +379,8 @@ class ExpressDecompiler {
 
   /// One assignment per leaf of [model], since the compiler builds nested
   /// maps back up from the paths.
-  List<String> _dataLines(Map<Object?, Object?> model) {
-    if (model.isEmpty) return [r'$/ = {}'];
+  List<String> _dataLines(Object? model, {String at = ''}) {
+    if (at.isEmpty && model is Map && model.isEmpty) return [r'$/ = {}'];
     final lines = <String>[];
     void visit(String path, Object? value) {
       if (value is Map && value.isNotEmpty) {
@@ -394,9 +400,20 @@ class ExpressDecompiler {
       }
     }
 
-    visit('', model);
+    visit(at, model);
     return lines;
   }
+
+  /// Whether [path] is a data path Express can assign at, such as
+  /// `/user/name`: one naming map keys, since the assignment compiles to an
+  /// update of the root that holds a map along the path, and so not one
+  /// naming an item of a list.
+  bool _isDataPath(String path) =>
+      path.startsWith('/') &&
+      path
+          .substring(1)
+          .split('/')
+          .every((s) => _pathSegment.hasMatch(s) && int.tryParse(s) == null);
 
   List<String> _componentLines(
     List<Map<String, Object?>> components,

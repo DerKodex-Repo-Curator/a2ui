@@ -260,6 +260,9 @@ class _Reader {
     return value;
   }
 
+  /// The start of a `\uXXXX` escape cut short, or nothing.
+  static final RegExp _cutEscape = RegExp(r'^(\\(u[0-9a-fA-F]{0,3})?)?$');
+
   String _string({required bool healable}) {
     _i++;
     final buffer = StringBuffer();
@@ -302,6 +305,14 @@ class _Reader {
             radix: 16,
           );
           if (code == null) _fail('invalid unicode escape');
+          // The high half of a surrogate pair, with the text ending where
+          // the low half's escape may begin, is left out with it.
+          if (code >= 0xD800 &&
+              code <= 0xDBFF &&
+              _cutEscape.hasMatch(text.substring(_i + 6))) {
+            _i = text.length;
+            continue;
+          }
           buffer.writeCharCode(code);
           _i += 4;
         default:

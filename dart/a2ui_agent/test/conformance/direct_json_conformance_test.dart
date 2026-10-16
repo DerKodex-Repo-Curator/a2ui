@@ -76,14 +76,6 @@ const Map<String, String> _v1StreamingRules = {
       'before v1.0 the error is raised when the block closes.',
 };
 
-/// Streaming cases this SDK does not pass yet, each with the behavior it
-/// lacks.
-const Map<String, String> _knownStreamingGaps = {
-  'test_stream_cut_surrogate_pair_v09':
-      'Known gap: a string cut inside an escaped surrogate pair is healed '
-      'with U+FFFD rather than cut before the pair.',
-};
-
 /// Whether the catalogs of [testCase] target v1.0, as most cases' do.
 bool _targetsV1(Map<String, Object?> testCase) =>
     switch (caseCatalogVersion(testCase['args']! as Map<String, Object?>)) {
@@ -109,7 +101,7 @@ String? _skipReason(Map<String, Object?> testCase, SuiteVersion version) {
           'the case runs as written in v1.0 only.';
     }
   }
-  return _knownStreamingGaps[testCase['name']];
+  return null;
 }
 
 void _runCase(Map<String, Object?> testCase, SuiteVersion version) {

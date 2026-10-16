@@ -37,7 +37,7 @@ void main() {
       ).load(),
       examples: '../../specification/v0_9/catalogs/basic/examples',
       expressCannotWrite: const {
-        '00_incremental.json': 'updates the data model below its root',
+        '00_incremental.json': 'updates an item of a list in the data model',
       },
     );
   });
@@ -49,7 +49,7 @@ void main() {
       ).load(),
       examples: '../../catalogs/basic/v1/examples',
       expressCannotWrite: const {
-        '00_incremental.json': 'updates the data model below its root',
+        '00_incremental.json': 'updates an item of a list in the data model',
       },
     );
   });
