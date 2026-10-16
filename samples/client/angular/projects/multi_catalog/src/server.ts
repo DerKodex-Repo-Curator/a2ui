@@ -112,7 +112,7 @@ async function handleStreamingResponse(
     const parts = event.status.message?.parts ?? [];
     if (parts.length > 0) {
       events++;
-      console.log(`[server] +${Date.now() - start}ms event ${events}: ${describeParts(parts)}`);
+      console.log(`[server] +${Date.now() - start}ms event ${events}:\n${describeParts(parts)}`);
       res.write(`data: ${JSON.stringify({parts, contextId: event.contextId})}\n\n`);
     }
   }
@@ -120,27 +120,20 @@ async function handleStreamingResponse(
   console.log(`[server] Streamed ${events} events`);
 }
 
-/** Summarizes the parts of an agent update for the log, one entry per part. */
+/** Formats the parts of an agent update for the log: text, or full A2UI messages as JSON. */
 function describeParts(parts: Part[]): string {
   return parts
     .map(part => {
       if (part.kind === 'text') {
-        return `text(${JSON.stringify(part.text.slice(0, 40))})`;
+        return `text: ${JSON.stringify(part.text)}`;
       }
       if (part.kind !== 'data') {
         return part.kind;
       }
       const messages = Array.isArray(part.data) ? part.data : [part.data];
-      return messages
-        .map(message => {
-          const type = Object.keys(message).find(key => key !== 'version') ?? '?';
-          const body = message[type] as {surfaceId?: string; components?: {id: string}[]};
-          const ids = body.components ? ` [${body.components.map(c => c.id).join(',')}]` : '';
-          return `${type}(${body.surfaceId})${ids}`;
-        })
-        .join(', ');
+      return messages.map(message => JSON.stringify(message)).join('\n');
     })
-    .join('; ');
+    .join('\n');
 }
 
 async function handleNonStreamingResponse(
@@ -155,7 +148,7 @@ async function handleNonStreamingResponse(
   }
   const result = (response as SendMessageSuccessResponse).result as Task;
   const parts = result.kind === 'task' ? (result.status.message?.parts ?? []) : [];
-  console.log(`[server] Sent ${parts.length} parts in one response`);
+  console.log(`[server] Sent ${parts.length} parts in one response:\n${describeParts(parts)}`);
   res.set('Cache-Control', 'no-store');
   res.json({parts, contextId: result.contextId});
 }

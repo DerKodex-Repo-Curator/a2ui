@@ -146,7 +146,9 @@ export class Client {
     if (messages.length > 0) {
       this.uiEvents.update(count => count + 1);
       for (const message of messages) {
-        console.log(`[a2ui] ${(performance.now() - this.requestStart).toFixed(0)}ms`, message);
+        console.log(
+          `[a2ui] ${(performance.now() - this.requestStart).toFixed(0)}ms ${JSON.stringify(message)}`,
+        );
       }
       this.renderer.processMessages(messages);
     }
