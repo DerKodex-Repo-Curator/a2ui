@@ -122,7 +122,7 @@ export abstract class Parser {
           ? this.unwrap(content)
           : [{type: 'a2ui', a2uiRaw: content, isFinal: true}];
         const touched = new Set<string>();
-        let checkTrees = true;
+        const incomplete = new Set<string>();
         for (const raw of rawParts) {
           if (raw.type === 'text') {
             parts.push({type: 'text', text: raw.text});
@@ -131,11 +131,12 @@ export abstract class Parser {
           const messages = this.compileBlock(raw.a2uiRaw, raw.isFinal);
           for (const surfaceId of target.apply(messages)) {
             touched.add(surfaceId);
+            if (!raw.isFinal) incomplete.add(surfaceId);
           }
           parts.push({type: 'a2ui', a2ui: messages});
-          checkTrees = checkTrees && raw.isFinal;
         }
-        if (checkTrees) target.checkTopology(touched);
+        const complete = [...touched].filter(s => !incomplete.has(s));
+        if (complete.length > 0) target.checkTopology(complete);
       } catch (e) {
         if (e instanceof A2uiError) {
           (e as A2uiError & {partialResults?: ResponsePart[]}).partialResults = parts;

@@ -19,7 +19,15 @@ import {AgentToRendererMessage, CatalogApi, linkCatalogs} from '../../internal/w
 import {ParseOptions, Parser} from '../../parser/parser.js';
 import {RawResponsePart} from '../../parser/response-part.js';
 import {checkParserCatalogs} from '../../utils/catalog-checks.js';
-import {addText, clean, matchCloseTag, scanBlock, searchOpenTag} from './blocks.js';
+import {
+  CLOSE_TAG,
+  OPEN_TAG,
+  addText,
+  clean,
+  matchCloseTag,
+  scanBlock,
+  searchOpenTag,
+} from './blocks.js';
 import {DirectJsonDecompiler} from './decompiler.js';
 import {readJson} from './json-reader.js';
 import {DirectJsonResponseStream} from './response-stream.js';
@@ -94,7 +102,12 @@ export class DirectJsonParser extends Parser {
    *
    * @throws {ParseError} If the block is empty or is not JSON.
    */
-  compile(formatContent: string, _isFinal = true): AgentToRendererMessage[] {
+  compile(formatContent: string, isFinal = true): AgentToRendererMessage[] {
+    if (!isFinal) {
+      throw new ParseError(
+        `The response ended inside an ${OPEN_TAG} block, before its ${CLOSE_TAG} tag.`,
+      );
+    }
     const cleaned = clean(formatContent);
     if (!cleaned) {
       throw new ParseError('The direct JSON block is empty.');

@@ -26,6 +26,7 @@ import {
   A2uiRequestProcessor,
   A2uiValidationError,
   DirectJsonParser,
+  ExpressParser,
   InMemoryCatalogProvider,
   ParseError,
   RendererState,
@@ -149,6 +150,24 @@ describe('parsing against a renderer state', () => {
     expect(emitted(parts)).toHaveLength(3);
     // A block parsed on its own is checked as a whole response.
     expect(() => parser.parseResponse(first)).toThrow(/Dangling reference/);
+  });
+
+  it('rejects an unclosed direct JSON block', () => {
+    const parser = new DirectJsonParser([BASIC]);
+
+    expect(() => parser.parseResponse('<a2ui-json>' + JSON.stringify([CREATE]))).toThrow(
+      ParseError,
+    );
+  });
+
+  it('checks closed surfaces even when a later block on another surface is truncated', () => {
+    const parser = new ExpressParser([BASIC]);
+    const closedDangling = '<a2ui>\nsurface("s1")\nroot = Column([missing])\n</a2ui>';
+    const truncatedOther = '<a2ui>\nsurface("s2")\nroot = Column([a])\na = Text("hi"';
+
+    expect(() => parser.parseResponse(`${closedDangling}\n${truncatedOther}`)).toThrow(
+      /Dangling reference/,
+    );
   });
 
   it('wraps a failure that is not an A2UI error as a compilation error', () => {
