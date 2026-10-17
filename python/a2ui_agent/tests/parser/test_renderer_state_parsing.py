@@ -31,6 +31,7 @@ from a2ui.core import (
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats import to_message_dicts
 from a2ui.inference_formats.direct_json import DirectJsonParser
+from a2ui.inference_formats.express import ExpressParser
 from a2ui.parser import A2uiPart, ResponsePart, TextPart
 from a2ui.processor import A2uiRequestProcessor
 from a2ui.utils import RendererState, validate_payload
@@ -199,6 +200,22 @@ def test_close_rejects_an_unclosed_block():
         stream.close()
 
 
+def test_parse_response_rejects_an_unclosed_block():
+    parser = DirectJsonParser([_BASIC])
+
+    with pytest.raises(A2uiParseError, match="ended inside"):
+        parser.parse_response("<a2ui-json>" + json.dumps([_CREATE]))
+
+
+def test_a_truncated_block_only_skips_the_surface_it_touches():
+    parser = ExpressParser([_BASIC])
+    closed_dangling = '<a2ui>\nsurface("s1")\nroot = Column([missing])\n</a2ui>'
+    truncated_other = '<a2ui>\nsurface("s2")\nroot = Column([a])\na = Text("hi"'
+
+    with pytest.raises(A2uiIntegrityError, match="Dangling reference"):
+        parser.parse_response(closed_dangling + "\n" + truncated_other)
+
+
 def test_close_checks_the_tree_of_an_unwrapped_stream():
     stream = DirectJsonParser([_BASIC]).open_stream(wrapped=False)
     stream.feed(json.dumps([_CREATE, _update(_column("a"))]))
@@ -310,6 +327,16 @@ def test_a_bound_state_for_other_catalogs_is_rejected():
 
     with pytest.raises(A2uiCatalogError, match="active catalogs"):
         A2uiRequestProcessor([_BASIC], state=other)
+
+
+def test_a_bound_state_normalizes_protocol_version_spelling():
+    raw = Catalog(catalog_id=_BASIC.catalog_id, protocol_version="0.9")
+    prefixed = Catalog(catalog_id=_BASIC.catalog_id, protocol_version="v0.9")
+    state = RendererState([raw])
+
+    processor = A2uiRequestProcessor([prefixed], state=state)
+
+    assert processor.state is state
 
 
 def test_a_stream_that_raises_has_ended():
