@@ -20,7 +20,7 @@ from collections.abc import Iterable, Iterator, Mapping, Sequence
 import contextlib
 import copy
 import dataclasses
-from typing import Any, ClassVar, cast
+from typing import Any, ClassVar, TypeAlias, cast
 
 from pydantic import BaseModel
 
@@ -51,6 +51,10 @@ __all__ = [
     "RendererState",
     "validate_payload",
 ]
+
+_MessagePayload: TypeAlias = (
+    AgentToRendererMessagePayload | Iterable[AgentToRendererMessage | Mapping[str, Any]]
+)
 
 # The `version` values that messages for each protocol version's catalogs
 # state, spelled as the specification spells them. A v0.8 message has no
@@ -197,13 +201,7 @@ class RendererState:
         """Returns the surface with the id, or None. Callers must not modify it."""
         return self._processor.model.get_surface(surface_id)
 
-    def apply(
-        self,
-        payload: (
-            AgentToRendererMessagePayload
-            | Iterable[AgentToRendererMessage | Mapping[str, Any]]
-        ),
-    ) -> list[str]:
+    def apply(self, payload: _MessagePayload) -> list[str]:
         """Checks the messages against the state and applies them.
 
         Each message must state a `version` that the catalogs' protocol
@@ -496,7 +494,7 @@ class _PayloadState(RendererState):
 
 def validate_payload(
     catalogs: Sequence[CatalogApi],
-    payload: AgentToRendererMessagePayload,
+    payload: _MessagePayload,
 ) -> None:
     """Checks a payload the way a renderer holding the catalogs would.
 
@@ -576,12 +574,7 @@ def _clone_surface(surface: SurfaceModel) -> SurfaceModel:
     return clone
 
 
-def _extract_messages(
-    payload: (
-        AgentToRendererMessagePayload
-        | Iterable[AgentToRendererMessage | Mapping[str, Any]]
-    ),
-) -> list[dict[str, Any]]:
+def _extract_messages(payload: _MessagePayload) -> list[dict[str, Any]]:
     """Normalizes a payload into a list of message dictionaries.
 
     Message models are converted with `to_message_dicts`, so the check sees
