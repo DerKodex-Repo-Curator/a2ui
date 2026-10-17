@@ -33,11 +33,11 @@ from a2ui.parser import ResponseStream
 from a2ui.parser import TextPart
 from a2ui.utils import RendererState
 
-from .blocks import clean_start
 from .blocks import CLOSE_TAG
 from .blocks import CLOSE_TAG_RE
 from .blocks import OPEN_TAG
 from .blocks import OPEN_TAG_RE
+from .blocks import clean_start
 from .blocks import possible_tag_start
 from .blocks import scan_block
 from .json_reader import read_partial_message_items
