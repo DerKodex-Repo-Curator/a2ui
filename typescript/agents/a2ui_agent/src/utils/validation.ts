@@ -57,20 +57,17 @@ class PayloadState extends RendererState {
  *
  * @param catalogs The active catalogs, which must target compatible protocol versions. Each
  *     surface is checked against the catalog its `catalogId` names.
- * @param payload An array of messages, as parsed JSON objects.
+ * @param payload An iterable of messages, as parsed JSON objects.
  * @throws {A2uiValidationError} If a renderer holding the catalogs would reject the payload.
  *     The error, or a subclass such as `A2uiIntegrityError`, describes the first problem
  *     found.
  * @throws {A2uiCatalogError} If no catalogs are given, or if their messages state different
  *     versions, for example v0.9 and v1.0 catalogs.
  */
-export function validatePayload(catalogs: CatalogApi[], payload: unknown[]): void {
+export function validatePayload(catalogs: CatalogApi[], payload: Iterable<unknown>): void {
   const state = new PayloadState(catalogs);
-  if (!Array.isArray(payload)) {
+  if (typeof payload !== 'object' || payload === null || !(Symbol.iterator in payload)) {
     throw new A2uiValidationError('Payload is not a JSON array.');
-  }
-  if (payload.length === 0) {
-    return;
   }
   state.checkTopology(state.apply(payload));
 }

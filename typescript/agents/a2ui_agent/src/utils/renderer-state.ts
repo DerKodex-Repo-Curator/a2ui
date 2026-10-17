@@ -168,7 +168,7 @@ export class RendererState {
    *
    * The call is atomic: if a message is rejected, none of them is applied.
    *
-   * @param payload One message or an array of messages, as parsed JSON objects.
+   * @param payload One message or an iterable of messages, as parsed JSON objects.
    * @returns The ids of the surfaces the messages create, update or delete, in the order the
    *     messages first name them.
    * @throws {A2uiValidationError} If a renderer in this state would reject a message. The
@@ -484,11 +484,15 @@ function cloneSurface(surface: SurfaceModel): SurfaceModel {
   return clone;
 }
 
+function isObjectIterable(value: unknown): value is Iterable<unknown> {
+  return typeof value === 'object' && value !== null && Symbol.iterator in value;
+}
+
 /** Normalizes a payload into a list of message objects, each a copy of the original. */
 function extractMessages(payload: unknown): Message[] {
-  const items = Array.isArray(payload) ? payload : [payload];
+  const items = isObjectIterable(payload) ? [...payload] : [payload];
   return items.map((item, index) => {
-    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+    if (!item || typeof item !== 'object' || isObjectIterable(item)) {
       throw new A2uiValidationError(`Message ${index} is not a JSON object.`);
     }
     return structuredClone(item as Message);
