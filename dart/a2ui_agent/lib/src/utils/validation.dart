@@ -43,7 +43,7 @@ import 'renderer_state.dart';
 /// v1.0 catalogs is not implemented yet and throws [UnimplementedError].
 void validatePayload(
   List<CatalogApi> catalogs,
-  List<AgentToRendererMessage> payload,
+  Iterable<AgentToRendererMessage> payload,
 ) {
   final RendererState state = createPayloadState(catalogs);
   try {

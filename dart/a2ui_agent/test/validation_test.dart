@@ -333,6 +333,18 @@ void main() {
         returnsNormally,
       );
     });
+
+    test('accepts any iterable of messages', () {
+      final Iterable<AgentToRendererMessage> messages = [
+        create(),
+        update([
+          column('root', ['t']),
+          text('t'),
+        ]),
+      ].where((_) => true);
+
+      expect(() => validatePayload([basic], messages), returnsNormally);
+    });
   });
 
   test('A2uiRequestProcessor accepts an example that updates a surface it '
