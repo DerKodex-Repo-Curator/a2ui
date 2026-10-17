@@ -404,6 +404,19 @@ describe('A2uiRequestProcessor with a renderer state', () => {
     );
   });
 
+  it('normalizes protocolVersion spelling when checking a bound state', () => {
+    const raw = new InMemoryCatalogProvider({catalogId: 'other', components: {}}, '0.9').load();
+    const prefixed = new InMemoryCatalogProvider(
+      {catalogId: 'other', components: {}},
+      'v0.9',
+    ).load();
+    const state = new RendererState([raw]);
+
+    const processor = new A2uiRequestProcessor([prefixed], undefined, undefined, {state});
+
+    expect(processor.state).toBe(state);
+  });
+
   it('reuses one parser', () => {
     const processor = new A2uiRequestProcessor([BASIC]);
 

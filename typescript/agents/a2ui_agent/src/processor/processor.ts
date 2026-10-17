@@ -20,6 +20,7 @@ import {A2uiCatalogError, AgentToRendererMessage, CatalogApi} from '../internal/
 import {ParseOptions, Parser} from '../parser/parser.js';
 import {ResponsePart} from '../parser/response-part.js';
 import {ResponseStream} from '../parser/response-stream.js';
+import {toWireProtocolVersion} from '../utils/protocol-version.js';
 import {RendererState} from '../utils/renderer-state.js';
 
 /** Options for a request processor. */
@@ -136,7 +137,7 @@ export class A2uiRequestProcessor {
   private checkState(state: RendererState | undefined): void {
     if (state === undefined) return;
     const describe = (catalogs: CatalogApi[]) =>
-      catalogs.map(c => `${c.id} (${c.protocolVersion})`).join(', ');
+      catalogs.map(c => `${c.id} (${toWireProtocolVersion(c.protocolVersion)})`).join(', ');
     const held = describe(state.catalogs);
     const active = describe(this.catalogs);
     if (held !== active) {
