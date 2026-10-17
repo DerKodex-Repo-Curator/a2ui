@@ -126,4 +126,31 @@ describe('A2uiGenerator', () => {
     expect(() => generator.createProcessor(mockCapabilities)).toThrow(A2uiValidationError);
     expect(() => generator.createProcessor(mockCapabilities)).toThrow(/broken_turn/);
   });
+
+  test('caches example validation, promptSnippet, and parser across createProcessor calls', () => {
+    const config = new CatalogConfig(basicCatalogV10);
+    const examples = {
+      'test_turn': [
+        {
+          version: 'v1.0' as const,
+          updateComponents: {
+            surfaceId: 's1',
+            components: [
+              {
+                id: 'comp_1',
+                component: 'Text',
+                text: 'hello',
+              },
+            ],
+          },
+        },
+      ],
+    };
+    const generator = new A2uiGenerator([config], examples);
+    const p1 = generator.createProcessor(mockCapabilities);
+    const p2 = generator.createProcessor(mockCapabilities);
+
+    expect(p1.promptSnippet).toBe(p2.promptSnippet);
+    expect(p1.parser).toBe(p2.parser);
+  });
 });

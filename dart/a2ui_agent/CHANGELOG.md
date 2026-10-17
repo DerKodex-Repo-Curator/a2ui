@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- `A2uiGenerator.createProcessor` caches example validation, `promptSnippet`,
+  and the stateless `Parser` per negotiated catalog list and format factory so
+  repeated requests do not re-validate static examples or rebuild the prompt
+  snippet from scratch.
 - Add `RendererState`, the agent's mirror of the surfaces a renderer holds.
   It wraps one `MessageProcessor` for its whole life and checks each message
   against everything applied before it, so an agent that keeps one state for
