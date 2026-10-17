@@ -19,6 +19,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from a2ui.core import A2uiCatalogError, CatalogApi
+from a2ui.core.common import to_protocol_version
 from a2ui.core.schema import AgentToRendererMessage
 from a2ui.inference_format import InferenceFormat, InferenceFormatFactory
 from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
@@ -173,9 +174,13 @@ class A2uiRequestProcessor:
     def _check_state(self, state: RendererState | None) -> None:
         if state is None:
             return
-        held = [(c.catalog_id, str(c.protocol_version)) for c in state.catalogs]
+        held = [
+            (c.catalog_id, to_protocol_version(c.protocol_version).value)
+            for c in state.catalogs
+        ]
         active = [
-            (c.catalog_id, str(c.protocol_version)) for c in self._active_catalogs
+            (c.catalog_id, to_protocol_version(c.protocol_version).value)
+            for c in self._active_catalogs
         ]
         if held != active:
             raise A2uiCatalogError(

@@ -329,6 +329,16 @@ def test_a_bound_state_for_other_catalogs_is_rejected():
         A2uiRequestProcessor([_BASIC], state=other)
 
 
+def test_a_bound_state_normalizes_protocol_version_spelling():
+    raw = Catalog(catalog_id=_BASIC.catalog_id, protocol_version="0.9")
+    prefixed = Catalog(catalog_id=_BASIC.catalog_id, protocol_version="v0.9")
+    state = RendererState([raw])
+
+    processor = A2uiRequestProcessor([prefixed], state=state)
+
+    assert processor.state is state
+
+
 def test_a_stream_that_raises_has_ended():
     stream = DirectJsonParser([_BASIC]).open_stream()
     stream.feed("<a2ui-json>" + json.dumps([_CREATE, _update(_column("a"))]))
