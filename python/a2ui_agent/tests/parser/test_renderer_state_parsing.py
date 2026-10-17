@@ -31,6 +31,7 @@ from a2ui.core import (
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats import to_message_dicts
 from a2ui.inference_formats.direct_json import DirectJsonParser
+from a2ui.inference_formats.express import ExpressParser
 from a2ui.parser import A2uiPart, ResponsePart, TextPart
 from a2ui.utils import RendererState, validate_payload
 
@@ -196,6 +197,22 @@ def test_close_rejects_an_unclosed_block():
 
     with pytest.raises(A2uiParseError, match="ended inside"):
         stream.close()
+
+
+def test_parse_response_rejects_an_unclosed_block():
+    parser = DirectJsonParser([_BASIC])
+
+    with pytest.raises(A2uiParseError, match="ended inside"):
+        parser.parse_response("<a2ui-json>" + json.dumps([_CREATE]))
+
+
+def test_a_truncated_block_only_skips_the_surface_it_touches():
+    parser = ExpressParser([_BASIC])
+    closed_dangling = '<a2ui>\nsurface("s1")\nroot = Column([missing])\n</a2ui>'
+    truncated_other = '<a2ui>\nsurface("s2")\nroot = Column([a])\na = Text("hi"'
+
+    with pytest.raises(A2uiIntegrityError, match="Dangling reference"):
+        parser.parse_response(closed_dangling + "\n" + truncated_other)
 
 
 def test_close_checks_the_tree_of_an_unwrapped_stream():

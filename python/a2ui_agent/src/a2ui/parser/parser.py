@@ -133,7 +133,7 @@ class Parser(ABC):
         target = state if state is not None else self._empty_state()
         response_parts: list[ResponsePart] = []
         touched: dict[str, None] = {}
-        check_trees = True
+        incomplete: set[str] = set()
         with target.transaction():
             try:
                 raw_parts = (
@@ -154,9 +154,11 @@ class Parser(ABC):
                         )
                         response_parts.append(A2uiPart(a2ui=messages))
                         touched.update(dict.fromkeys(block_touched))
-                        check_trees = check_trees and raw_part.is_final
-                if check_trees:
-                    target.check_topology(touched)
+                        if not raw_part.is_final:
+                            incomplete.update(block_touched)
+                complete = [s for s in touched if s not in incomplete]
+                if complete:
+                    target.check_topology(complete)
             except A2uiError as e:
                 setattr(e, "partial_results", response_parts)
                 raise
