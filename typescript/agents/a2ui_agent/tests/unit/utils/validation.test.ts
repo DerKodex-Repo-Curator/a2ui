@@ -238,4 +238,13 @@ describe('validatePayload', () => {
 
     expect(payload).toEqual(copy);
   });
+
+  it('accepts any iterable of messages', () => {
+    function* messages() {
+      yield create(basicId);
+      yield update(COLUMN, TEXT);
+    }
+
+    validatePayload([BASIC], messages());
+  });
 });
