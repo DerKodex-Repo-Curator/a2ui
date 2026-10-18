@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- The Express compiler throws `A2uiValidationError` for a check on a
+  component whose schema declares no `checks`, such as
+  `Text("hi", ?required($/name))`, rather than writing `checks` onto it.
 - Support cross-catalog `$ref` references across peer catalogs in
   `resolveCatalogs`, `validatePayloads`, `DirectJsonPromptGenerator` (preserving
   unbundled external `$ref`s in `Catalog.toJson()` while retaining transitive

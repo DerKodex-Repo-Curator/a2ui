@@ -1012,12 +1012,12 @@
     category: "ValidationError"
 
 - name: test_compile_express_checks_on_uncheckable_component_is_a_validation_error
-  description: Passing a check list ([?...]) to a component whose catalog schema does not declare a checks property is a validation error.
+  description: Passing a check list ([?...]) to a component whose catalog schema does not declare a checks property is a validation error. The check names the value it checks, so that the missing checks property is the only error.
   action: compile
   args:
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
-  input: 'root = Text("hi", [?required])'
+  input: 'root = Text("hi", [?required($/name)])'
   expect_error:
     category: "ValidationError"
 
